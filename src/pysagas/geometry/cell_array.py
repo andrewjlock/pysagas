@@ -16,9 +16,9 @@ class CellArray:
         -----------
         """
 
-        self.n = len(cells)
+        self.num = len(cells)
         self.data = np.full(
-            (17, self.n), np.NaN
+            (21, self.num), np.NaN
         )  # Data except for parameter sensivities
         self.index = {
             "p0": [0, 1, 2],
@@ -28,6 +28,10 @@ class CellArray:
             "n": [10, 11, 12],
             "c": [13, 14, 15],
             "id": 16,
+            "pressure": 17,
+            "Mach": 18,
+            "temperature": 19,
+            "method": 20,
         }
 
         # Store vertices
@@ -41,7 +45,7 @@ class CellArray:
         )
 
         # Calc normal
-        normal = np.cross((self.p1 - self.p0).T, (self.p2 - self.p0).T)
+        normal = np.cross((self.p2 - self.p0).T, (self.p1 - self.p0).T)
         self.data[10:13, :] = normal.T / np.linalg.norm(normal, axis=1)
 
         # Calc centroid
@@ -78,6 +82,7 @@ class CellArray:
             "dcdp": self.dcdp,
         }
 
+
     def __getattr__(self, name):
         if name in self.index.keys():
             return self.data[self.index[name]]
@@ -88,9 +93,17 @@ class CellArray:
                 "Accessing CellArray value <" + name + "> that does not exist"
             )
 
+    def set_attr(self, attr, val):
+        if attr in self.index.keys():
+            self.data[self.index[attr]] = val
+        else:
+            raise ValueError(
+                "Attempting to write CellArray attribute <" + attr + "> that does not exist"
+            )
+
     def reconstruct(self):
         cells = []
-        for i in range(self.n):
+        for i in range(self.num):
             cell = Cell(
                 Vector(*self.p0[:, i]),
                 Vector(*self.p1[:, i]),
