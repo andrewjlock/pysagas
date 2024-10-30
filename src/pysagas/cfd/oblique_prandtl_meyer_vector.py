@@ -10,6 +10,7 @@ from pysagas.utilities import add_sens_data
 from pysagas.cfd.solver import FlowSolver, FlowResults, SensitivityResults
 from pysagas.flow_vec import FlowStateVec
 import time
+from scipy.spatial.transform import Rotation as R
 
 
 class OPMVec(FlowSolver):
@@ -36,107 +37,87 @@ class OPMVec(FlowSolver):
     def solve(
         self,
         freestream: Optional[FlowState] = None,
-        mach: Optional[float] = None,
-        aoa: Optional[float] = None,
         cog: Vector = Vector(0, 0, 0),
+        A_ref: float = 1,
+        c_ref: float = 1,
     ) -> FlowResults:
-        already_run = super().solve(freestream=freestream, mach=mach, aoa=aoa)
-        if already_run:
-            # Already have a result
-            if self.verbosity > 1:
-                print("Attention: this flowstate has already been solved.")
-            result = self.flow_result
 
-        else:
-            # Get flow
-            flow = self._last_solve_freestream
+        flow = freestream
 
-            # Construct progress bar
-            if self.verbosity > 0:
-                print()
-                desc = f"Running OPM solver at AoA = {flow.aoa:.2f} and Mach = {flow.M:.2f}"
+        M2 = np.full(self.cells.num, float(flow.M))
+        p2 = np.full(self.cells.num, 0.0)
+        T2 = np.full(self.cells.num, float(flow.T))
+        method = np.full(self.cells.num, -1)
 
+        theta = np.pi / 2 - np.arccos(
+            np.dot(flow.direction.vec, self.cells.n)
+            / (
+                np.linalg.norm(self.cells.n, axis=0)
+                * np.linalg.norm(flow.direction.vec)
+            )
+        )
+        r = self.cells.c - cog.vec.reshape(3, 1)
+        beta_max = OPMVec.beta_max(M=flow.M, gamma=flow.gamma)
+        theta_max = OPMVec.theta_from_beta(
+            M1=flow.M, beta=beta_max, gamma=flow.gamma
+        )
 
-            M2 = np.full(self.cells.num, float(flow.M))
-            p2 = np.full(self.cells.num, 0.0)
-            T2 = np.full(self.cells.num, float(flow.T))
-            method = np.full(self.cells.num, -1)
+        ll_idx = np.where(theta < np.deg2rad(self.PM_ANGLE_THRESHOLD))
+        l_idx = np.where(
+            (np.deg2rad(self.PM_ANGLE_THRESHOLD) < theta) & (theta < 0)
+        )
+        m_idx = np.where(theta == 0)
+        h_idx = np.where((beta_max > theta) & (theta > 0))
+        hh_idx = np.where(theta > theta_max)
 
-            theta = np.pi / 2 - np.arccos(
-                np.dot(flow.direction.vec, self.cells.n)
-                / (
-                    np.linalg.norm(self.cells.n, axis=0)
-                    * np.linalg.norm(flow.direction.vec)
+        M2[l_idx], p2[l_idx], T2[l_idx] = self._solve_pm(
+            abs(theta[l_idx]), flow.M, flow.P, flow.T, flow.gamma
+        )
+        M2[m_idx], p2[m_idx], T2[m_idx] = np.full(
+            (len(m_idx), 3), (flow.M, flow.P, flow.T)
+        ).T
+        M2[h_idx], p2[h_idx], T2[h_idx] = self._solve_oblique(
+            abs(theta[h_idx]), flow.M, flow.P, flow.T, flow.gamma
+        )
+        M2[hh_idx], p2[hh_idx], T2[hh_idx] = np.full(
+            (len(hh_idx), 3), self._solve_normal(flow.M, flow.P, flow.T, flow.gamma)
+        ).T
+
+        method[ll_idx] = -1
+        method[l_idx] = 1
+        method[m_idx] = 0
+        method[h_idx] = 3
+        method[hh_idx] = 2
+
+        flow_state = FlowStateVec(self.cells, flow.M, flow.aoa)
+        flow_state.set_attr("p", p2)
+        flow_state.set_attr("M", M2)
+        flow_state.set_attr("T", T2)
+        flow_state.set_attr("method", method)
+        flow_state.calc_props()
+        self.cells.flow_states.append(flow_state)
+
+        F = self.cells.n * p2 * self.cells.A
+        force = np.sum(F, axis=1)
+        # No need to rotate moment when only AoA rotation
+        moment = np.sum(np.cross(r.T, F.T).T, axis=1)
+        C_force = force/(freestream.q * A_ref)
+        C_moment = moment / (freestream.q*A_ref*c_ref)
+
+        bad = len(ll_idx)
+        if self.verbosity > 0:
+            if bad / self.cells.num > 0.25:
+                print(
+                    f"WARNING: {100*bad/self.cells.num:.2f}% of cells were not "
+                    "solved due to PM threshold."
                 )
-            )
-            r = self.cells.c - cog.vec.reshape(3, 1)
-            beta_max = OPMVec.beta_max(M=flow.M, gamma=flow.gamma)
-            theta_max = OPMVec.theta_from_beta(
-                M1=flow.M, beta=beta_max, gamma=flow.gamma
-            )
 
-            ll_idx = np.where(theta < np.deg2rad(self.PM_ANGLE_THRESHOLD))
-            l_idx = np.where(
-                (np.deg2rad(self.PM_ANGLE_THRESHOLD) < theta) & (theta < 0)
-            )
-            m_idx = np.where(theta == 0)
-            h_idx = np.where((beta_max > theta) & (theta > 0))
-            hh_idx = np.where(theta > theta_max)
+        result = {
+            "CF": C_force,
+            "CM": C_moment,
+        }
 
-            M2[l_idx], p2[l_idx], T2[l_idx] = self._solve_pm(
-                abs(theta[l_idx]), flow.M, flow.P, flow.T, flow.gamma
-            )
-            M2[m_idx], p2[m_idx], T2[m_idx] = np.full(
-                (len(m_idx), 3), (flow.M, flow.P, flow.T)
-            ).T
-            M2[h_idx], p2[h_idx], T2[h_idx] = self._solve_oblique(
-                abs(theta[h_idx]), flow.M, flow.P, flow.T, flow.gamma
-            )
-            M2[hh_idx], p2[hh_idx], T2[hh_idx] = np.full(
-                (len(hh_idx), 3), self._solve_normal(flow.M, flow.P, flow.T, flow.gamma)
-            ).T
-
-            method[ll_idx] = -1
-            method[l_idx] = 1
-            method[m_idx] = 0
-            method[h_idx] = 3
-            method[hh_idx] = 2
-
-            flow_state = FlowStateVec(self.cells, flow.M, flow.aoa)
-            flow_state.set_attr("p", p2)
-            flow_state.set_attr("M", M2)
-            flow_state.set_attr("T", T2)
-            flow_state.set_attr("method", method)
-            flow_state.calc_props()
-            self.cells.flow_states.append(flow_state)
-
-            F = self.cells.n * p2 * self.cells.A
-            net_force = np.sum(F, axis=1)
-            net_moment = np.cross(r.T, F.T).T
-
-            bad = len(ll_idx)
-
-            if self.verbosity > 0:
-
-                if bad / self.cells.num > 0.25:
-                    print(
-                        f"WARNING: {100*bad/self.cells.num:.2f}% of cells were not "
-                        "solved due to PM threshold."
-                    )
-
-            # Construct results
-            result = FlowResults(
-                freestream=flow, net_force=net_force, net_moment=net_moment
-            )
-
-            # Save
-            self.flow_result = result
-
-        # Print result
-        if self.verbosity > 1:
-            print(result)
-
-        return result
+        return result, flow_state
 
     @staticmethod
     def pm(M: float, gamma: float = 1.4):

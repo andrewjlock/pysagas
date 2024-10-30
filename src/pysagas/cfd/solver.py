@@ -663,6 +663,48 @@ class FlowResults:
         CL, CD, Cm = self.coefficients()
         print(f"CL = {CL:.3f}\nCD = {CD:.3f}\nCm = {Cm:.3f}")
 
+class FlowResults:
+    """A class containing the aerodynamic force and moment
+    information with respect to design parameters.
+
+    Attributes
+    ----------
+    freestream : FlowState
+        The freestream flow state.
+
+    net_force : pd.DataFrame
+        The net force in cartesian coordinate frame (x,y,z).
+
+    m_sense : pd.DataFrame
+        The net moment in cartesian coordinate frame (x,y,z).
+    """
+
+    def __init__(
+        self, freestream: FlowState, net_force: Vector, net_moment: Vector
+    ) -> None:
+        self.freestream = freestream
+        self.net_force = net_force
+        self.net_moment = net_moment
+
+        # Calculate angle of attack
+        self.aoa = np.rad2deg(
+            np.arctan(freestream.direction.y / freestream.direction.x)
+        )
+
+    def coefficients(self, A_ref = 1.0, c_ref = 1.0):
+        w = FlowSolver.body_to_wind(v=self.net_force, aoa=self.aoa)
+        C_L = w[1] / (self.freestream.q * A_ref)
+        C_D = w[0] / (self.freestream.q * A_ref)
+
+        mw = FlowSolver.body_to_wind(v=self.net_moment, aoa=self.aoa)
+        C_m = -mw[2] / (self.freestream.q * A_ref * c_ref)
+        return C_L, C_D, C_m
+
+    @property
+    def coef(self):
+        CL, CD, Cm = self.coefficients()
+        print(f"CL = {CL:.3f}\nCD = {CD:.3f}\nCm = {Cm:.3f}")
+
 
 class SensitivityResults:
     """A class containing the aerodynamic force and moment sensitivity
