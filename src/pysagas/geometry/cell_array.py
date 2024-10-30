@@ -1,10 +1,6 @@
 import numpy as np
 from typing import List
 from pysagas.geometry.cell import Cell, Vector
-import autograd.numpy as npa
-from autograd import elementwise_grad as egrad
-from autograd import jacobian, grad
-
 
 class CellArray:
     def __init__(self, cells: List[Cell]):
@@ -18,7 +14,7 @@ class CellArray:
 
         self.num = len(cells)
         self.data = np.full(
-            (21, self.num), np.NaN
+            (25, self.num), np.NaN
         )  # Data except for parameter sensivities
         self.index = {
             "p0": [0, 1, 2],
@@ -28,12 +24,9 @@ class CellArray:
             "n": [10, 11, 12],
             "c": [13, 14, 15],
             "id": 16,
-            "pressure": 17,
-            "Mach": 18,
-            "temperature": 19,
-            "method": 20,
         }
 
+        self.flow_states = []
         # Store vertices
         self.data[0:9, :] = np.array(
             [np.concatenate([c.p0.vec, c.p1.vec, c.p2.vec]) for c in cells]
@@ -80,8 +73,8 @@ class CellArray:
             "dvdp": self.dvdp,
             "dAdp": self.dAdp,
             "dcdp": self.dcdp,
+            "dndp": np.einsum("ij...,jk...->ik...",self.dndv, self.dvdp)
         }
-
 
     def __getattr__(self, name):
         if name in self.index.keys():
@@ -98,7 +91,9 @@ class CellArray:
             self.data[self.index[attr]] = val
         else:
             raise ValueError(
-                "Attempting to write CellArray attribute <" + attr + "> that does not exist"
+                "Attempting to write CellArray attribute <"
+                + attr
+                + "> that does not exist"
             )
 
     def reconstruct(self):
