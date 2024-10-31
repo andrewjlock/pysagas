@@ -1,16 +1,9 @@
 import numpy as np
-import pandas as pd
-from tqdm import tqdm
-from scipy.optimize import bisect
-from typing import Optional, Tuple
 from pysagas.flow import FlowState
 from pysagas.geometry import Vector
-from scipy.optimize import root
-from pysagas.utilities import add_sens_data
-from pysagas.cfd.solver import FlowSolver, FlowResults, SensitivityResults
+from pysagas.cfd.solver import FlowSolver
 from pysagas.flow_vec import FlowStateVec
 import time
-from scipy.spatial.transform import Rotation as R
 
 
 class OPMVec(FlowSolver):
@@ -36,11 +29,11 @@ class OPMVec(FlowSolver):
 
     def solve(
         self,
-        freestream: Optional[FlowState] = None,
-        cog: Vector = Vector(0, 0, 0),
+        freestream = None,
+        cog = np.array([0,0,0]),
         A_ref: float = 1,
         c_ref: float = 1,
-    ) -> FlowResults:
+    ):
 
         flow = freestream
 
@@ -56,7 +49,7 @@ class OPMVec(FlowSolver):
                 * np.linalg.norm(flow.direction.vec)
             )
         )
-        r = self.cells.c - cog.vec.reshape(3, 1)
+        r = self.cells.c - cog.reshape(3, 1)
         beta_max = OPMVec.beta_max(M=flow.M, gamma=flow.gamma)
         theta_max = OPMVec.theta_from_beta(
             M1=flow.M, beta=beta_max, gamma=flow.gamma
@@ -364,15 +357,6 @@ class OPMVec(FlowSolver):
             if error_max < 1e-6:
                 break
         beta = sign_beta * x_1
-
-        # Finally, solve with secant method
-        # beta = sign_beta * secant(func, b1, b2, tol=tolerance)
-        # root_result = root(f=func, x0=b1, x1=b2, xtol=tolerance, method="secant")
-        # if root_result.converged:
-        # else:
-        #     raise Exception(
-        #         f"Cannot converge beta (theta={np.rad2deg(theta):.2f} degrees)."
-        #     )
 
         return beta
 

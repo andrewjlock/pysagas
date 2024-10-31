@@ -3,7 +3,7 @@ import pandas as pd
 from tqdm import tqdm
 from typing import List, Optional
 from pysagas.geometry import Cell
-
+from scipy.spatial.distance import cdist
 
 def add_sens_data(
     cells: List[Cell],
@@ -65,7 +65,6 @@ def add_sens_data(
     pts_xyz = [[[p.x, p.y, p.z] for p in [c.p0, c.p1, c.p2]] for c in cells]
     pts_xyz = np.array(pts_xyz).reshape(-1, 3)
     data_xyz = np.array([data["x"], data["y"], data["z"]]).T
-    from scipy.spatial.distance import cdist
 
     dist = cdist(pts_xyz, data_xyz)
     min_idx = np.argmin(dist, axis=1)  # index of min distance to data for each cell
@@ -86,7 +85,6 @@ def add_sens_data(
                     # Optional chack that distance is less than threshold.
                     #  if np.abs(min_dist[3*cell_idx + pt_idx]) < match_tolerance:
                     matched_data = data.iloc[min_idx[3 * cell_idx + pt_idx]][param_cols]
-
                     # Round off infinitesimally small values
                     matched_data[abs(matched_data) < rounding_tolerance] = 0
 
