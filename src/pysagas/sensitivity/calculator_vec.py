@@ -23,7 +23,7 @@ def sensitivity_calculator_vec(
         dF = (
             dPdp * cells.A * cells.n
             + flow_state.p * cells.dAdp[p] * cells.n
-            - flow_state.p * cells.A * cells.dndp[:, p, :]
+                - flow_state.p * cells.A * cells.dndp[p, :, :]
         )
         sensitivities[p, :, :] = dF
 

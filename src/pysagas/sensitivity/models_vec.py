@@ -23,7 +23,7 @@ def piston_sensitivity(cell: CellArray, flowstate, p_i: int, **kwargs):
         flowstate.rho[ss_idx]
         * flowstate.a[ss_idx]
         * np.einsum(
-            "i...,i...", flowstate.vec[:, ss_idx], -cell.dndp[:, p_i, ss_idx]
+                "i...,...i", flowstate.vec[:, ss_idx], -cell.dndp[p_i, :, ss_idx]
         ).reshape(-1)
     )
     return dPdp

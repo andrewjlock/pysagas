@@ -73,7 +73,7 @@ class CellArray:
             "dvdp": self.dvdp,
             "dAdp": self.dAdp,
             "dcdp": self.dcdp,
-            "dndp": np.einsum("ij...,jk...->ik...",self.dndv, self.dvdp)
+            "dndp": np.einsum("ij...,jk...",self.dndv, self.dvdp).T
         }
 
     def __getattr__(self, name):
