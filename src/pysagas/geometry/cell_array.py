@@ -1,9 +1,12 @@
 import numpy as np
+import pyvista as pv
 from typing import List
+
 from pysagas.geometry.cell import Cell, Vector
 
+
 class CellArray:
-    def __init__(self, cells: List[Cell]):
+    def __init__(self, points, dvdp, mesh):
         """A 2-D array of cell properties for use with vectorised copmutations.
 
         Cell properties are atomatically computed on instantiation.
@@ -12,7 +15,7 @@ class CellArray:
         -----------
         """
 
-        self.num = len(cells)
+        self.num = points.shape[0]
         self.data = np.full(
             (25, self.num), np.NaN
         )  # Data except for parameter sensivities
@@ -25,12 +28,12 @@ class CellArray:
             "c": [13, 14, 15],
             "id": 16,
         }
+        self.mesh = mesh
 
         self.flow_states = []
         # Store vertices
-        self.data[0:9, :] = np.array(
-            [np.concatenate([c.p0.vec, c.p1.vec, c.p2.vec]) for c in cells]
-        ).T
+        self.data[0:9] = points.T
+        self.dvdp = dvdp
 
         # Calculate area
         self.data[9, :] = 0.5 * np.linalg.norm(
@@ -38,7 +41,7 @@ class CellArray:
         )
 
         # Calc normal
-        normal = np.cross((self.p2 - self.p0).T, (self.p1 - self.p0).T)
+        normal = np.cross((self.p1 - self.p0).T, (self.p2 - self.p0).T)
         self.data[10:13, :] = normal.T / np.linalg.norm(normal, axis=1)
 
         # Calc centroid
@@ -50,31 +53,95 @@ class CellArray:
             ]
         )
 
-        self.face_ids = [c._face_ids for c in cells]
+        self.dcdv = np.array(
+            [
+                [1 / 3, 0, 0, 1 / 3, 0, 0, 1 / 3, 0, 0],
+                [0, 1 / 3, 0, 0, 1 / 3, 0, 0, 1 / 3, 0],
+                [0, 0, 1 / 3, 0, 0, 1 / 3, 0, 0, 1 / 3],
+            ]
+        )
 
-        # Get dndp
-        # Note: Ideally we vectorise this computation for speed.
-        # For now I will just copy values from cells.
-        # Can we just cheat and use an autograd package? (I.e. Princeton autograd)
-        self.dndv = np.array([c.dndv.T for c in cells]).T
+        # self.face_ids = [c._face_ids for c in cells]
 
-        # Get dvdp
-        # As above, ideally we vectorise this computation but for now will simply copy
-        self.dvdp = np.array([c.dvdp.T for c in cells]).T
+        # Calc normal sensitivity
+        dndv = []
+        for i in range(self.num):
+            dndv_ = self.calc_dndv(
+                self.data[0:3, i], self.data[3:6, i], self.data[6:9, i]
+            )
+            dndv.append(dndv_)
+        self.dndv = np.array(dndv)
 
-        # Get dadp
-        self.dAdp = np.array([c.dAdp.T for c in cells]).T
+        # Calc area sensitivity
+        dadv = []
+        for i in range(self.num):
+            dadv_ = self.calc_dadv(
+                self.data[0:3, i], self.data[3:6, i], self.data[6:9, i]
+            )
+            dadv.append(dadv_)
+        self.dadv = np.array(dadv)
 
-        # Get dcdp
-        self.dcdp = np.array([c.dcdp.T for c in cells]).T
+        # Used for checking
+        # cells = []
+        # for i in range(self.num):
+        #     c = Cell(
+        #         Vector(*self.data[0:3, i]),
+        #         Vector(*self.data[3:6, i]),
+        #         Vector(*self.data[6:9, i]),
+        #     )
+        #     c.dvdp = dvdp[:, i, :]
+        #     cells.append(c)
+        #
+        # p0 = cells[803].p0
+        # p1 = cells[803].p1
+        # p2 = cells[803].p2
+        # t1 = cells[803].n_sensitivity(p0, p1, p2)
+
+        # t2 = self.calc_dndv(self.p0[:,803], self.p1[:,803], self.p2[:,803])
+
+        # breakpoint()
+        # # Get dadp
+        # self.dAdp = np.array([c.dAdp.T for c in cells]).T
+        #
+        # # Get dcdp
+        # self.dcdp = np.array([c.dcdp.T for c in cells]).T
 
         self.sens = {
             "dndv": self.dndv,
             "dvdp": self.dvdp,
-            "dAdp": self.dAdp,
-            "dcdp": self.dcdp,
-            "dndp": np.einsum("ij...,jk...",self.dndv, self.dvdp).T
+            "dAdp": np.einsum("ij,kij->ki", self.dadv, self.dvdp),
+            "dcdp": np.einsum("ij,klj->kli", self.dcdv, self.dvdp),
+            "dndp": np.einsum("ijk,lik->lij", self.dndv, self.dvdp),
         }
+
+        self.plot(self.dndp[1,:,1])
+
+    def calc_dndv(self, p0, p1, p2):
+        # Use quotient rule to differentiate (a x b)/ ||a x b|| where a = p2-p0 and b=p1-p0
+        # h' = (f'g - fg')/g^2
+        # For this we need d/dp(||a x b||) = ((a x b)/||a x b||)*d(axb)dp
+        a = p1 - p0
+        b = p2 - p0
+        da_dp = np.vstack([-np.eye(3), np.eye(3), np.zeros((3, 3))])
+        db_dp = np.vstack([-np.eye(3), np.zeros((3, 3)), np.eye(3)])
+        ab = np.cross(a, b)
+        abnorm = np.linalg.norm(ab)
+        dab_dp = np.cross(da_dp, b) + np.cross(a, db_dp)
+        dabnorm_dp = (ab / abnorm) @ dab_dp.T
+        result = (dab_dp * abnorm - np.outer(ab, dabnorm_dp).T) / abnorm**2
+        return result.T
+
+    def calc_dadv(self, p0, p1, p2):
+        a = p1 - p0
+        b = p2 - p0
+        da_dp = np.vstack([-np.eye(3), np.eye(3), np.zeros((3, 3))])
+        db_dp = np.vstack([-np.eye(3), np.zeros((3, 3)), np.eye(3)])
+        ab = np.cross(a, b)
+        abnorm = np.linalg.norm(ab)
+        dab_dp = np.cross(da_dp, b) + np.cross(a, db_dp)
+        dadv = (ab / abnorm) * dab_dp
+        dadv = 0.5 * np.sum(dadv, axis=1)
+        return dadv
 
     def __getattr__(self, name):
         if name in self.index.keys():
@@ -111,3 +178,9 @@ class CellArray:
             # cell.dcdp = self.dcdp[:, :, i]
             cells.append(cell)
         return cells
+
+    def plot(self, scalars=None):
+        p = pv.Plotter()
+        p.add_mesh(self.mesh, show_edges=True, scalars=scalars)
+        p.show_axes()
+        p.show()
