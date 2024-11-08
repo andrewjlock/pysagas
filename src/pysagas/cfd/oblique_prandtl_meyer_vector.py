@@ -177,7 +177,10 @@ class OPMVec:
         # Solve for M2
         v_M1 = OPMVec.pm(M=M1, gamma=gamma)
         v_M2 = theta + v_M1
-        M2 = OPMVec.inv_pm(v_M2)
+        if len(v_M2) > 0:
+            M2 = OPMVec.inv_pm(v_M2)
+        else:
+            M2 = M1
 
         a = (gamma - 1) / 2
         n = 1 + a * M1**2
@@ -325,8 +328,10 @@ class OPMVec:
         # Initialise
         sign_beta = np.sign(theta)
         theta = abs(theta)
-        b1 = np.arcsin(1.0 / M1) * 0.2
-        b2 = np.arcsin(1.0 / M1) * 5
+        b1 = np.arcsin(1.0 / M1) * 1
+        b2 = OPMVec.beta_max(M1)
+        # b2 = np.arcsin(1.0 / M1) * 3
+        # breakpoint()
 
         # Check f1
         f1 = func(b1)
