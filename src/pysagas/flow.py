@@ -222,6 +222,8 @@ class FlowStateVec:
         rot_n = rot_mat@self.cells.n
         f_proj = f_fs.reshape(3,1) - np.dot(rot_n.T, f_fs) * rot_n
         f_proj = f_proj / np.linalg.norm(f_proj, axis=0)
-        # f_proj = rot_mat@(f_proj.T)
         self.set_attr("dir", f_proj)
         self.set_attr("vec", self.dir * self.v_mag)
+
+        # self.set_attr("dir", np.full((self.cells.num, 3), [1, 0, 0]).T)
+        # self.set_attr("vec", self.dir * self.v_mag)

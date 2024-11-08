@@ -40,10 +40,10 @@ class OPMVec:
         method = np.full(cells.num, -1)
 
         theta = np.pi / 2 - np.arccos(
-            np.dot(flow.direction, cells.n)
+            np.dot(-flow.direction, cells.n)
             / (
                 np.linalg.norm(cells.n, axis=0)
-                * np.linalg.norm(flow.direction)
+                * np.linalg.norm(-flow.direction)
             )
         )
         r = cells.c - cog.reshape(3, 1)
@@ -87,7 +87,7 @@ class OPMVec:
         flow_state.calc_props()
         cells.flow_states.append(flow_state)
 
-        F = cells.n * p2 * cells.A
+        F = -cells.n * p2 * cells.A
         force = np.sum(F, axis=1)
         # No need to rotate moment when only AoA rotation
         moment = np.sum(np.cross(r.T, F.T).T, axis=1)
