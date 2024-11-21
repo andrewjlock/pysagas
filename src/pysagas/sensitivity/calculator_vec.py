@@ -9,6 +9,7 @@ def sensitivity_calculator_vec(
     freestream,
     flow_state,
     cog=np.array([0, 0, 0]),
+    cog_sens = None,
     A_ref: float = 1,
     c_ref: float = 1,
 ):
@@ -24,16 +25,25 @@ def sensitivity_calculator_vec(
         dF = (
             dPdp * cells.A * -cells.n
             + flow_state.p * cells.dAdp[p] * -cells.n
-                - flow_state.p * cells.A * cells.dndp[p, :, :]
+                 + flow_state.p * cells.A * -cells.dndp[p, :, :]
         )
         sensitivities[p, :, :] = dF
 
         r = cells.c - cog.reshape(3, 1)
         F = flow_state.p * cells.A * -cells.n
-        moment_sensitivities[p, :, :] = (
-            np.cross(r.T, sensitivities[p, :, :].T).T
-                + np.cross(cells.dcdp[p, :,:], F.T).T
-        )
+
+        if cog_sens is None:
+            moment_sensitivities[p, :, :] = (
+                np.cross(r.T, sensitivities[p, :, :].T).T
+                    + np.cross(cells.dcdp[p, :,:], F.T).T
+            )
+        else:
+            moment_sensitivities[p, :, :] = (
+                np.cross(r.T, sensitivities[p, :, :].T).T
+                    + np.cross(cells.dcdp[p, :,:]-cog_sens[p], F.T).T
+            )
+    
+        flow_state.p_sens.append(dPdp)
 
     dFdp = np.sum(sensitivities, axis=-1) / (freestream.q * A_ref)
     dMdp = np.sum(moment_sensitivities, axis=-1) / (freestream.q * A_ref * c_ref)

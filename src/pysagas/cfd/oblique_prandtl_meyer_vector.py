@@ -43,7 +43,7 @@ class OPMVec:
             np.dot(-flow.direction, cells.n)
             / (
                 np.linalg.norm(cells.n, axis=0)
-                * np.linalg.norm(-flow.direction)
+                * np.linalg.norm(flow.direction)
             )
         )
         r = cells.c - cog.reshape(3, 1)
@@ -57,8 +57,14 @@ class OPMVec:
             (np.deg2rad(self.PM_ANGLE_THRESHOLD) < theta) & (theta < 0)
         )
         m_idx = np.where(theta == 0)
-        h_idx = np.where((beta_max > theta) & (theta > 0))
+        h_idx = np.where((theta_max > theta) & (theta > 0))
         hh_idx = np.where(theta > theta_max)
+
+        # Force PM for all as test
+        # l_idx = np.where(theta >= np.deg2rad(self.PM_ANGLE_THRESHOLD))
+        # m_idx = np.array([], dtype=int)
+        # h_idx = np.array([], dtype=int)
+        # hh_idx = np.array([], dtype=int)
 
         M2[l_idx], p2[l_idx], T2[l_idx] = self._solve_pm(
             abs(theta[l_idx]), flow.M, flow.P, flow.T, flow.gamma
@@ -89,7 +95,6 @@ class OPMVec:
 
         F = -cells.n * p2 * cells.A
         force = np.sum(F, axis=1)
-        # No need to rotate moment when only AoA rotation
         moment = np.sum(np.cross(r.T, F.T).T, axis=1)
         C_force = force/(freestream.q * A_ref)
         C_moment = moment / (freestream.q*A_ref*c_ref)
@@ -122,7 +127,7 @@ class OPMVec:
         """Solves the inverse Prandtl-Meyer function using a bisection algorithm."""
         func = lambda M: OPMVec.pm(M, gamma) - angle
         # Use a manual vectorised version of bisection method here
-        max_step = 100
+        max_step = 200
         x_0 = np.full(len(angle), 1)
         x_1 = np.full(len(angle), 42)
         for step in range(max_step):
@@ -143,37 +148,6 @@ class OPMVec:
     def _solve_pm(
         theta: float, M1: float, p1: float = 1.0, T1: float = 1.0, gamma: float = 1.4
     ):
-        """Solves for the Mach number, pressure and temperature after a Prandtl-Meyer
-        expansion fan.
-
-        Parameters
-        ----------
-        theta : float
-            The deflection angle, specified in radians.
-
-        M1 : float
-            The pre-expansion Mach number.
-
-        p1 : float, optional
-            The pre-expansion pressure (Pa). The default is 1.0.
-
-        T1 : float, optional
-            The pre-expansion temperature (K). The default is 1.0.
-
-        gamma : float, optional
-            The ratio of specific heats. The default is 1.4.
-
-        Returns
-        --------
-        M2 : float
-            The post-expansion Mach number.
-
-        p2 : float
-            The post-expansion pressure (Pa).
-
-        T2 : float
-            The post-expansion temperature (K).
-        """
         # Solve for M2
         v_M1 = OPMVec.pm(M=M1, gamma=gamma)
         v_M2 = theta + v_M1
@@ -271,7 +245,7 @@ class OPMVec:
         rho2_rho1 = (gamma + 1) * M1**2 / (2 + (gamma - 1) * M1**2)
         p2_p1 = 1 + 2 * gamma * (M1**2 - 1) / (gamma + 1)
 
-        M2 = ((1 + M1 * (gamma - 1) / 2) / (gamma * M1**2 - (gamma - 1) / 2)) ** 0.5
+        M2 = ((1 + M1**2 * (gamma - 1) / 2) / (gamma * M1**2 - (gamma - 1) / 2)) ** 0.5
         p2 = p1 * p2_p1
         T2 = T1 * p2_p1 / rho2_rho1
 
@@ -331,7 +305,6 @@ class OPMVec:
         b1 = np.arcsin(1.0 / M1) * 1
         b2 = OPMVec.beta_max(M1)
         # b2 = np.arcsin(1.0 / M1) * 3
-        # breakpoint()
 
         # Check f1
         f1 = func(b1)
@@ -344,7 +317,7 @@ class OPMVec:
             return sign_beta * b2
 
         # Instead of secand method solve again with bisection method
-        max_step = 100
+        max_step = 200
         x_0 = np.full(len(theta), b1)
         x_1 = np.full(len(theta), b2)
         for step in range(max_step):

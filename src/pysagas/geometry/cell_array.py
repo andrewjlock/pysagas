@@ -41,7 +41,7 @@ class CellArray:
         )
 
         # Calc normal
-        normal = -np.cross((self.p1 - self.p0).T, (self.p2 - self.p0).T)
+        normal = np.cross((self.p1 - self.p0).T, (self.p2 - self.p0).T)
         self.data[10:13, :] = normal.T / np.linalg.norm(normal, axis=1)
 
         # Calc centroid
@@ -70,7 +70,7 @@ class CellArray:
                 self.data[0:3, i], self.data[3:6, i], self.data[6:9, i]
             )
             dndv.append(dndv_)
-        self.dndv = -1*np.array(dndv)
+        self.dndv = np.array(dndv)
 
         # Calc area sensitivity
         dadv = []
@@ -89,6 +89,8 @@ class CellArray:
             "dndp": np.moveaxis(np.einsum("ijk,lik->lij", self.dndv, self.dvdp),2,1)
         }
 
+        self.A_int = np.sum(self.A)
+        self.dAdp_int = np.sum(self.dAdp, axis=1)
 
     def calc_dndv(self, p0, p1, p2):
         # Use quotient rule to differentiate (a x b)/ ||a x b|| where a = p2-p0 and b=p1-p0
@@ -150,6 +152,9 @@ class CellArray:
         return cells
 
     def plot(self, scalars=None):
+        if scalars is None:
+            if len(self.flow_states) > 0:
+                scalars = self.flow_states[0].p
         p = pv.Plotter()
         p.add_mesh(self.mesh, show_edges=True, scalars=scalars)
         p.show_axes()

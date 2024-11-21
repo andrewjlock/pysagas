@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
+
 class GasState:
     """An ideal gas state defined by Mach number, pressure and
     temperature.
@@ -93,7 +94,7 @@ class FlowState(GasState):
         mach: float,
         pressure: float,
         temperature: float,
-        direction = None,
+        direction=None,
         aoa: float = 0.0,
         gamma: float = 1.4,
     ) -> None:
@@ -126,8 +127,11 @@ class FlowState(GasState):
             self.direction = direction.unit
         else:
             # Use AoA to calculate direction
-            vec = direction = np.array([1, 1 * np.tan(np.deg2rad(aoa)), 0])
-            self.direction = vec / np.linalg.norm(vec)
+            rot_mat = R.from_euler("ZYX", [0, -aoa, 0], degrees=1).as_matrix()
+            vec = rot_mat @ np.array([-1, 0, 0])
+            self.direction = vec / np.linalg.norm(
+                vec
+            )  # Shouldn't be needed but doesn't hurt
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, FlowState):
@@ -157,24 +161,15 @@ class FlowState(GasState):
 
     @property
     def aoa(self):
-        aoa = np.rad2deg(np.arctan(self.vec[1] / self.vec[0]))
-        return round(aoa, 6)
+        aoa = np.rad2deg(np.arctan(self.vec[2] / self.vec[0]))
+        return aoa
 
-
-if __name__ == "__main__":
-    flow = FlowState(6, 700, 70)
 
 class FlowStateVec:
     def __init__(self, cells, Mach, aoa):
 
-        self.consts = {
-            "gamma": 1.4,
-            "R": 287,
-            "M_fs": Mach,
-            "aoa": aoa,
-            "cells": cells
-        }
-        self.data = np.full((14, cells.num), np.NaN)
+        self.consts = {"gamma": 1.4, "R": 287, "M_fs": Mach, "aoa": aoa, "cells": cells}
+        self.data = np.full((15, cells.num), np.NaN)
         self.index = {
             "p": 0,
             "M": 1,
@@ -187,6 +182,7 @@ class FlowStateVec:
             "dir": [8, 9, 10],  # Flow vector direction
             "vec": [11, 12, 13],  # Flow vector
         }
+        self.p_sens = []
 
     def __getattr__(self, name):
         if name in self.index.keys():
@@ -210,20 +206,23 @@ class FlowStateVec:
 
     def calc_props(self):
         self.set_attr("rho", self.p / (self.R * self.T))
-        self.set_attr("a", (self.gamma * self.R * self.T)**0.5)
+        self.set_attr("a", (self.gamma * self.R * self.T) ** 0.5)
         self.set_attr("v_mag", self.M * self.a)
         self.set_attr("q", 0.5 * self.rho * self.v_mag**2)
 
-        # Calculate direction by projecting onto surface 
+        # Calculate direction by projecting onto surface
         # given by normal vector by normal
-        # Note: This may fail (/0) for surfaces normal to flow
-        f_fs = np.array([1, 0, 0])
-        rot_mat = R.from_euler("Z", -self.aoa, degrees=1).as_matrix()
-        rot_n = rot_mat@self.cells.n
-        f_proj = f_fs.reshape(3,1) - np.dot(rot_n.T, f_fs) * rot_n
+        f_fs = np.array([-1, 0, 0])
+        rot_mat = R.from_euler("Y", -self.aoa, degrees=1).as_matrix()
+        f_fs = rot_mat @ f_fs
+        f_proj = f_fs.reshape(3, 1) - np.dot(self.cells.n.T, f_fs) * self.cells.n
+        # We find instances where the surfaces are normal to the flow and set the 
+        # flow direction as free strepes
+        singulars = np.where(np.linalg.norm(f_proj, axis=0)==0)[0]
+        f_proj[:, singulars] = np.repeat(f_fs.reshape(3,-1), len(singulars), axis=1)
         f_proj = f_proj / np.linalg.norm(f_proj, axis=0)
         self.set_attr("dir", f_proj)
         self.set_attr("vec", self.dir * self.v_mag)
 
-        # self.set_attr("dir", np.full((self.cells.num, 3), [1, 0, 0]).T)
+        # self.set_attr("dir", np.full((self.cells.num, 3), f_fs).T)
         # self.set_attr("vec", self.dir * self.v_mag)
