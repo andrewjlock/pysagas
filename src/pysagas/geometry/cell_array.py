@@ -86,31 +86,45 @@ class CellArray:
             "dvdp": self.dvdp,
             "dAdp": np.einsum("ij,kij->ki", self.dadv, self.dvdp),
             "dcdp": np.einsum("ij,klj->kli", self.dcdv, self.dvdp),
-            "dndp": np.moveaxis(np.einsum("ijk,lik->lij", self.dndv, self.dvdp),2,1)
+            "dndp": np.moveaxis(np.einsum("ijk,lik->lij", self.dndv, self.dvdp), 2, 1),
         }
 
         self.A_int = np.sum(self.A)
         self.dAdp_int = np.sum(self.dAdp, axis=1)
 
-        c_n = np.einsum("ij,ij->j", self.c, self.n) # Shape: cells
-        dcdp_n = np.einsum("ijk, kj->ij", self.dcdp, self.n) # Shape: p x cells
-        c_dndp = np.einsum("ij,kij->jk", self.c, self.dndp).T # Shape: p x cells
-        self.vol = (1/3)*np.sum(c_n*self.A)
-        self.dvoldp = (1/3)*np.sum(dcdp_n*self.A + c_dndp*self.A + c_n*self.dAdp, axis=1)
+        c_n = np.einsum("ij,ij->j", self.c, self.n)  # Shape: cells
+        dcdp_n = np.einsum("ijk, kj->ij", self.dcdp, self.n)  # Shape: p x cells
+        c_dndp = np.einsum("ij,kij->jk", self.c, self.dndp).T  # Shape: p x cells
+        self.vol = (1 / 3) * np.sum(c_n * self.A)
+        self.dvoldp = (1 / 3) * np.sum(
+            dcdp_n * self.A + c_dndp * self.A + c_n * self.dAdp, axis=1
+        )
+        
+        self.vol_t = 0.025
+        self.vol_net = self.vol - self.A_int * self.vol_t 
+        self.dvol_net_dp = self.dvoldp - self.dAdp_int*self.vol_t
 
         i_max_l = np.argmax(self.c[0])
         i_min_l = np.argmin(self.c[0])
         i_max_w = np.argmax(self.c[1])
         i_min_w = np.argmin(self.c[1])
+        i_max_h = np.argmax(self.c[2])
+        i_min_h = np.argmin(self.c[2])
 
-        max_l = self.c[0,i_max_l] - self.c[0,i_min_l]
-        max_w = self.c[0,i_max_w] - self.c[0,i_min_w]
-        dldp = self.dcdp[:, i_max_l,0] - self.dcdp[:,i_min_l, 0]
-        dwdp = self.dcdp[:, i_max_w,1] - self.dcdp[:,i_min_w, 1]
-        l = (self.c[0, i_max_l] - self.c[0, i_min_l])
-        w = (self.c[1, i_max_w] - self.c[1, i_min_w])
-        self.AR = l/w
-        self.dARdp = (dldp*w - l*dwdp)/w**2
+        max_l = self.c[0, i_max_l] - self.c[0, i_min_l]
+        max_w = self.c[1, i_max_w] - self.c[1, i_min_w]
+        max_h = self.c[2, i_max_h] - self.c[2, i_min_h]
+        dldp = self.dcdp[:, i_max_l, 0] - self.dcdp[:, i_min_l, 0]
+        dwdp = self.dcdp[:, i_max_w, 1] - self.dcdp[:, i_min_w, 1]
+        dhdp = self.dcdp[:, i_max_h, 2] - self.dcdp[:, i_min_h, 2]
+        l = self.c[0, i_max_l] - self.c[0, i_min_l]
+        w = self.c[1, i_max_w] - self.c[1, i_min_w]
+        self.AR = l / w
+        self.dARdp = (dldp * w - l * dwdp) / w**2
+        self.width = max_w
+        self.dwidth_dp = dwdp
+        self.height = max_h
+        self.dheight_dp = dhdp
 
     def calc_dndv(self, p0, p1, p2):
         # Use quotient rule to differentiate (a x b)/ ||a x b|| where a = p2-p0 and b=p1-p0
@@ -179,4 +193,3 @@ class CellArray:
         p.add_mesh(self.mesh, show_edges=True, scalars=scalars)
         p.show_axes()
         p.show()
-

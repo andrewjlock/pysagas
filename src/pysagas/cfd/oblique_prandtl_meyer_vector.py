@@ -60,6 +60,7 @@ class OPMVec:
         h_idx = np.where((theta_max > theta) & (theta > 0))
         hh_idx = np.where(theta > theta_max)
 
+
         # Force PM for all as test
         # l_idx = np.where(theta >= np.deg2rad(self.PM_ANGLE_THRESHOLD))
         # m_idx = np.array([], dtype=int)
