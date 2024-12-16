@@ -1,8 +1,5 @@
 import numpy as np
 import pyvista as pv
-from typing import List
-
-from pysagas.geometry.cell import Cell, Vector
 
 
 class CellArray:
@@ -30,7 +27,6 @@ class CellArray:
         }
         self.mesh = mesh
 
-        self.flow_states = []
         # Store vertices
         self.data[0:9] = points.T
         self.dvdp = dvdp
@@ -60,8 +56,6 @@ class CellArray:
                 [0, 0, 1 / 3, 0, 0, 1 / 3, 0, 0, 1 / 3],
             ]
         )
-
-        # self.face_ids = [c._face_ids for c in cells]
 
         # Calc normal sensitivity
         dndv = []
@@ -99,10 +93,10 @@ class CellArray:
         self.dvoldp = (1 / 3) * np.sum(
             dcdp_n * self.A + c_dndp * self.A + c_n * self.dAdp, axis=1
         )
-        
+
         self.vol_t = 0.025
-        self.vol_net = self.vol - self.A_int * self.vol_t 
-        self.dvol_net_dp = self.dvoldp - self.dAdp_int*self.vol_t
+        self.vol_net = self.vol - self.A_int * self.vol_t
+        self.dvol_net_dp = self.dvoldp - self.dAdp_int * self.vol_t
 
         i_max_l = np.argmax(self.c[0])
         i_min_l = np.argmin(self.c[0])
@@ -186,9 +180,6 @@ class CellArray:
         return cells
 
     def plot(self, scalars=None):
-        if scalars is None:
-            if len(self.flow_states) > 0:
-                scalars = self.flow_states[0].p
         p = pv.Plotter()
         p.add_mesh(self.mesh, show_edges=True, scalars=scalars)
         p.show_axes()

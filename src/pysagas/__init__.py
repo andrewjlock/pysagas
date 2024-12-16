@@ -1,5 +1,5 @@
 from art import tprint
-from .geometry import Vector, Cell, CellArray
+from .geometry import CellArray
 
 
 def banner():

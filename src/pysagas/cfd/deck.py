@@ -1,7 +1,4 @@
-import copy
 import pandas as pd
-from typing import Optional, Union
-from abc import ABC, abstractmethod
 
 
 class AeroDeck:
@@ -38,13 +35,4 @@ class SensDeck:
 
     def to_csv(self):
         for i, p in enumerate(self.parameters):
-            # Change headers back to only derivative numerator for compatability
-            # with existing codes (may change in future)
-
-            # headers = self.dfs[i].columns.values.tolist()
-            # headers_ = [h.split("_")[0] for h in headers]
-            # self.dfs[i].rename(
-            #     columns={h: h_ for h, h_ in zip(headers, headers_)}, inplace=True
-            # )
-
-            self.dfs[i].to_csv(p+"_sensdeck.csv")
+            self.dfs[i].to_csv(p + "_sensdeck.csv")

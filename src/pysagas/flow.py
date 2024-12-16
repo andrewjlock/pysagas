@@ -224,5 +224,3 @@ class FlowStateVec:
         self.set_attr("dir", f_proj)
         self.set_attr("vec", self.dir * self.v_mag)
 
-        # self.set_attr("dir", np.full((self.cells.num, 3), f_fs).T)
-        # self.set_attr("vec", self.dir * self.v_mag)

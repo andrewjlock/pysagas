@@ -20,14 +20,13 @@ class OPMVec:
         - 3 : oblique shock
     """
 
-    method = "Oblique/Prandtl-Meyer combination"
     PM_ANGLE_THRESHOLD = -20  # degrees
 
     def solve(
         self,
         cells,
-        freestream = None,
-        cog = np.array([0,0,0]),
+        freestream=None,
+        cog=np.array([0, 0, 0]),
         A_ref: float = 1,
         c_ref: float = 1,
     ):
@@ -41,31 +40,17 @@ class OPMVec:
 
         theta = np.pi / 2 - np.arccos(
             np.dot(-flow.direction, cells.n)
-            / (
-                np.linalg.norm(cells.n, axis=0)
-                * np.linalg.norm(flow.direction)
-            )
+            / (np.linalg.norm(cells.n, axis=0) * np.linalg.norm(flow.direction))
         )
         r = cells.c - cog.reshape(3, 1)
         beta_max = OPMVec.beta_max(M=flow.M, gamma=flow.gamma)
-        theta_max = OPMVec.theta_from_beta(
-            M1=flow.M, beta=beta_max, gamma=flow.gamma
-        )
+        theta_max = OPMVec.theta_from_beta(M1=flow.M, beta=beta_max, gamma=flow.gamma)
 
         ll_idx = np.where(theta < np.deg2rad(self.PM_ANGLE_THRESHOLD))
-        l_idx = np.where(
-            (np.deg2rad(self.PM_ANGLE_THRESHOLD) < theta) & (theta < 0)
-        )
+        l_idx = np.where((np.deg2rad(self.PM_ANGLE_THRESHOLD) < theta) & (theta < 0))
         m_idx = np.where(theta == 0)
         h_idx = np.where((theta_max > theta) & (theta > 0))
         hh_idx = np.where(theta > theta_max)
-
-
-        # Force PM for all as test
-        # l_idx = np.where(theta >= np.deg2rad(self.PM_ANGLE_THRESHOLD))
-        # m_idx = np.array([], dtype=int)
-        # h_idx = np.array([], dtype=int)
-        # hh_idx = np.array([], dtype=int)
 
         M2[l_idx], p2[l_idx], T2[l_idx] = self._solve_pm(
             abs(theta[l_idx]), flow.M, flow.P, flow.T, flow.gamma
@@ -92,13 +77,12 @@ class OPMVec:
         flow_state.set_attr("T", T2)
         flow_state.set_attr("method", method)
         flow_state.calc_props()
-        cells.flow_states.append(flow_state)
 
         F = -cells.n * p2 * cells.A
         force = np.sum(F, axis=1)
         moment = np.sum(np.cross(r.T, F.T).T, axis=1)
-        C_force = force/(freestream.q * A_ref)
-        C_moment = moment / (freestream.q*A_ref*c_ref)
+        C_force = force / (freestream.q * A_ref)
+        C_moment = moment / (freestream.q * A_ref * c_ref)
 
         bad = len(ll_idx)
         if bad / cells.num > 0.25:

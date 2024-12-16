@@ -1,7 +1,5 @@
 import numpy as np
-import pandas as pd
-from pysagas.geometry import CellArray
-from pysagas.sensitivity.models_vec import van_dyke_sensitivity, piston_sensitivity
+from pysagas.sensitivity.models_vec import van_dyke_sensitivity
 
 
 def sensitivity_calculator_vec(
@@ -9,7 +7,7 @@ def sensitivity_calculator_vec(
     freestream,
     flow_state,
     cog=np.array([0, 0, 0]),
-    cog_sens = None,
+    cog_sens=None,
     A_ref: float = 1,
     c_ref: float = 1,
 ):
@@ -25,7 +23,7 @@ def sensitivity_calculator_vec(
         dF = (
             dPdp * cells.A * -cells.n
             + flow_state.p * cells.dAdp[p] * -cells.n
-                 + flow_state.p * cells.A * -cells.dndp[p, :, :]
+            + flow_state.p * cells.A * -cells.dndp[p, :, :]
         )
         sensitivities[p, :, :] = dF
 
@@ -35,14 +33,14 @@ def sensitivity_calculator_vec(
         if cog_sens is None:
             moment_sensitivities[p, :, :] = (
                 np.cross(r.T, sensitivities[p, :, :].T).T
-                    + np.cross(cells.dcdp[p, :,:], F.T).T
+                + np.cross(cells.dcdp[p, :, :], F.T).T
             )
         else:
             moment_sensitivities[p, :, :] = (
                 np.cross(r.T, sensitivities[p, :, :].T).T
-                    + np.cross(cells.dcdp[p, :,:]-cog_sens[p], F.T).T
+                + np.cross(cells.dcdp[p, :, :] - cog_sens[p], F.T).T
             )
-    
+
         flow_state.p_sens.append(dPdp)
 
     dFdp = np.sum(sensitivities, axis=-1) / (freestream.q * A_ref)
