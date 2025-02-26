@@ -2,49 +2,38 @@ name: tests
 
 on:
   push:
-    branches: [ main, development ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
 jobs:
   build:
+
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.7", "3.8", "3.9"]
+
     steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install packages
-        run: |
-          git config --global url."https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github".insteadOf https://github
-          python -m pip install --upgrade pip
-          pip install coverage-badge
-          pip install pytest
-          pip install pytest-cov
-          pip install pytest-html
-          pip install ./
-
-      - name: Test with pytest
-        run: |
-          pytest --cov=pysagas --cov-report xml --cov-report html --html=pytest_report.html --self-contained-html tests/
-      
-      - name: Generate coverage badge
-        run: |
-          coverage-badge -f -o coverage.svg
-  
-      - name: Clean up and organise
-        run: |
-          mkdir coverage
-          mv htmlcov/* coverage/
-          mkdir deploy
-          mv coverage deploy/
-          mv coverage.svg deploy/
-          mv pytest_report.html deploy/
-
-      - name: Publish to GitHub Pages
-        uses: JamesIves/github-pages-deploy-action@v4
-        with:
-          folder: deploy
+    - uses: actions/checkout@v2
+    - name: Install gdtk
+      run: |
+        mkdir gdtk
+        cd gdtk/
+        git init
+        git remote add -f origin https://github.com/gdtk-uq/gdtk.git
+        git config core.sparseCheckout true
+        echo "src/lib/" >> .git/info/sparse-checkout
+        git pull origin master
+        cd src/lib
+        python3 -m pip install .
+        cd ../../../
+    - name: Install package
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest
+        pip install ./
+    - name: Test with pytest
+      run: |
+        pytest tests

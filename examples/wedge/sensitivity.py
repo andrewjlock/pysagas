@@ -58,3 +58,5 @@ for aoa in aoa_range:
 # Save decks
 aerodeck.to_csv()
 sensdeck.to_csv()
+
+print(aerodeck)

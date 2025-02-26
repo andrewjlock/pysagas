@@ -1,0 +1,1558 @@
+diff --git a/.github/workflows/tests.yml b/.github/workflows/tests.yml
+index 86d8740..82a3858 100644
+--- a/.github/workflows/tests.yml
++++ b/.github/workflows/tests.yml
+@@ -2,49 +2,38 @@ name: tests
+ 
+ on:
+   push:
+-    branches: [ main, development ]
++    branches: [ main ]
+   pull_request:
+     branches: [ main ]
+ 
+ jobs:
+   build:
+-    runs-on: ubuntu-latest
+-    steps:
+-      - uses: actions/checkout@v3
+-
+-      - name: Set up Python 3.11
+-        uses: actions/setup-python@v4
+-        with:
+-          python-version: '3.11'
+ 
+-      - name: Install packages
+-        run: |
+-          git config --global url."https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github".insteadOf https://github
+-          python -m pip install --upgrade pip
+-          pip install coverage-badge
+-          pip install pytest
+-          pip install pytest-cov
+-          pip install pytest-html
+-          pip install ./
+-
+-      - name: Test with pytest
+-        run: |
+-          pytest --cov=pysagas --cov-report xml --cov-report html --html=pytest_report.html --self-contained-html tests/
+-      
+-      - name: Generate coverage badge
+-        run: |
+-          coverage-badge -f -o coverage.svg
+-  
+-      - name: Clean up and organise
+-        run: |
+-          mkdir coverage
+-          mv htmlcov/* coverage/
+-          mkdir deploy
+-          mv coverage deploy/
+-          mv coverage.svg deploy/
+-          mv pytest_report.html deploy/
++    runs-on: ubuntu-latest
++    strategy:
++      fail-fast: false
++      matrix:
++        python-version: ["3.7", "3.8", "3.9"]
+ 
+-      - name: Publish to GitHub Pages
+-        uses: JamesIves/github-pages-deploy-action@v4
+-        with:
+-          folder: deploy
++    steps:
++    - uses: actions/checkout@v2
++    - name: Install gdtk
++      run: |
++        mkdir gdtk
++        cd gdtk/
++        git init
++        git remote add -f origin https://github.com/gdtk-uq/gdtk.git
++        git config core.sparseCheckout true
++        echo "src/lib/" >> .git/info/sparse-checkout
++        git pull origin master
++        cd src/lib
++        python3 -m pip install .
++        cd ../../../
++    - name: Install package
++      run: |
++        python -m pip install --upgrade pip
++        pip install pytest
++        pip install ./
++    - name: Test with pytest
++      run: |
++        pytest tests
+diff --git a/.gitignore b/.gitignore
+index 7b55185..394c5d5 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -161,8 +161,6 @@ cython_debug/
+ 
+ # Miscellaneous
+ test.py
+-aerodeck.csv
+-all_components_sensitivity.csv
+-swept_1_sensitivity.csv
+-thickness_sensdeck.csv
+-Wedge-swept-0.stl
++*.vtk
++*.stl
++*.csv
+\ No newline at end of file
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index a61b0c3..c26dc89 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,28 +1,3 @@
+-## v0.15.2 (2024-07-04)
+-
+-### Fix
+-
+-- merge conflict
+-
+-## v0.15.1 (2024-06-29)
+-
+-### Refactor
+-
+-- migrate Vector into hypervehicle
+-
+-## v0.15.0 (2024-06-29)
+-
+-### Feat
+-
+-- **examples**: added example of generating aerodeck and sensedeck from geometry
+-
+-### Fix
+-
+-- **SensitivityCalculator**: do not overwrite verbosity
+-- **_read_c3d_loads**: fix tag handling
+-- **Cart3DShapeOpt**: add extra checks for errors
+-- **van_dyke_sensitivity**: added supersonic mach conditional
+-
+ ## v0.14.0 (2024-02-27)
+ 
+ ### Feat
+diff --git a/README.md b/README.md
+index ea84012..b22df66 100644
+--- a/README.md
++++ b/README.md
+@@ -13,12 +13,8 @@
+     <img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg">
+   </a>
+ 
+-  <a href="https://kieran-mackle.github.io/pysagas/pytest_report">
+-    <img src="https://github.com/kieran-mackle/pysagas/actions/workflows/tests.yml/badge.svg" alt="Test Status" >
+-  </a>
+-
+-  <a href="https://kieran-mackle.github.io/pysagas/coverage">
+-    <img src="https://github.com/kieran-mackle/pysagas/raw/gh-pages/coverage.svg?raw=true" alt="Test Coverage" >
++  <a>
++    <img src="https://github.com/kieran-mackle/pysagas/actions/workflows/tests.yml/badge.svg" alt="Test Status" class="center">
+   </a>
+   
+ </p>
+diff --git a/examples/wedge/sensitivity.py b/examples/wedge/sensitivity.py
+index fb30214..e417876 100644
+--- a/examples/wedge/sensitivity.py
++++ b/examples/wedge/sensitivity.py
+@@ -58,3 +58,5 @@ for aoa in aoa_range:
+ # Save decks
+ aerodeck.to_csv()
+ sensdeck.to_csv()
++
++print(aerodeck)
+\ No newline at end of file
+diff --git a/pyproject.toml b/pyproject.toml
+index 53f93ee..2772785 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -1,52 +1,16 @@
+ [build-system]
+-requires = ["setuptools>=61"]
+-build-backend = "setuptools.build_meta"
+-
+-[project]
+-name = "hypysagas"
+-version = "0.15.2"
+-authors = [
+-  { name="Kieran Mackle", email="kemackle98@gmail.com" },
+-]
+-description = "Python Sensitivity Approximations for Geometric-Aerodynamic Surfaces"
+-readme = "README.md"
+-requires-python = ">=3.11"
+-classifiers = [
+-    "Programming Language :: Python :: 3",
+-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+-    "Operating System :: OS Independent",
+-]
+-dependencies = [
+-    'numpy >= 1.23.5',
+-    'pandas >= 1.5.2',
+-    'tqdm >= 4.64.1',
+-    'art >= 5.8',
+-    'meshio >= 5.3.4',
+-    'matplotlib',
+-    'scipy >= 1.10.1',
+-    'hypervehicle >= 0.6.0',
++requires = [
++    "setuptools>=42",
++    "wheel"
+ ]
++build-backend = "setuptools.build_meta"
+ 
+-[project.optional-dependencies]
+-dev = [
+-    'sphinx',
+-    'sphinx-rtd-theme == 1.1.1',
+-    'sphinx-copybutton >= 0.5.0',
+-    'sphinx-inline-tabs >= 2022.1.2b11',
+-    'myst-parser >= 0.18.1',
+-    'sphinx-autobuild >= 2021.3.14',
+-]
+-
+-[project.urls]
+-"Homepage" = "https://github.com/kieran-mackle/pysagas"
+-"Bug Tracker" = "https://github.com/kieran-mackle/pysagas/issues"
+-
++[tool]
+ [tool.commitizen]
+ name = "cz_conventional_commits"
+-version = "0.15.2"
++version = "0.14.0"
+ tag_format = "v$version"
+-version_provider = "pep621"
+ version_files = [
+-    "pyproject.toml:^version",
++    "pysagas/__init__.py:__version__",
+ ]
+ update_changelog_on_bump = true
+diff --git a/src/pysagas/__init__.py b/pysagas/__init__.py
+similarity index 87%
+rename from src/pysagas/__init__.py
+rename to pysagas/__init__.py
+index 2ce82a2..0859f85 100644
+--- a/src/pysagas/__init__.py
++++ b/pysagas/__init__.py
+@@ -1,8 +1,12 @@
+-from art import tprint
++__version__ = "0.14.0"
++
+ from .geometry import Vector, Cell
+ from .flow import GasState, FlowState
+ 
+ 
++from art import tprint
++
++
+ def banner():
+     """Prints the PySAGAS banner"""
+     tprint("PySAGAS", "tarty4")
+diff --git a/src/pysagas/cfd/__init__.py b/pysagas/cfd/__init__.py
+similarity index 100%
+rename from src/pysagas/cfd/__init__.py
+rename to pysagas/cfd/__init__.py
+diff --git a/src/pysagas/cfd/cart3d.py b/pysagas/cfd/cart3d.py
+similarity index 99%
+rename from src/pysagas/cfd/cart3d.py
+rename to pysagas/cfd/cart3d.py
+index b30ba2d..5bed8be 100644
+--- a/src/pysagas/cfd/cart3d.py
++++ b/pysagas/cfd/cart3d.py
+@@ -463,8 +463,6 @@ class Cart3D(FlowSolver):
+                 _tag = word[0]
+ 
+                 if (not tag) or (tag is not None and tag == _tag):
+-                    if not tag:
+-                        tag = _tag
+                     coeff = word[-1]
+                     short_coeff = coeff[1:4]
+                     long_coeff = coeff[1:6]
+diff --git a/src/pysagas/cfd/deck.py b/pysagas/cfd/deck.py
+similarity index 100%
+rename from src/pysagas/cfd/deck.py
+rename to pysagas/cfd/deck.py
+diff --git a/src/pysagas/cfd/oblique_prandtl_meyer.py b/pysagas/cfd/oblique_prandtl_meyer.py
+similarity index 96%
+rename from src/pysagas/cfd/oblique_prandtl_meyer.py
+rename to pysagas/cfd/oblique_prandtl_meyer.py
+index fc3f5c5..056cbbd 100644
+--- a/src/pysagas/cfd/oblique_prandtl_meyer.py
++++ b/pysagas/cfd/oblique_prandtl_meyer.py
+@@ -8,6 +8,7 @@ from pysagas.geometry import Vector
+ from scipy.optimize import root_scalar
+ from pysagas.utilities import add_sens_data
+ from pysagas.cfd.solver import FlowSolver, FlowResults, SensitivityResults
++from hypervehicle.utilities import PatchTag
+ 
+ 
+ class OPM(FlowSolver):
+@@ -33,11 +34,12 @@ class OPM(FlowSolver):
+     def solve(
+         self,
+         freestream: Optional[FlowState] = None,
++        eng_outflow: Optional[FlowState] = None,
+         mach: Optional[float] = None,
+         aoa: Optional[float] = None,
+         cog: Vector = Vector(0, 0, 0),
+     ) -> FlowResults:
+-        already_run = super().solve(freestream=freestream, mach=mach, aoa=aoa)
++        already_run = super().solve(freestream=freestream, eng_outflow=eng_outflow, mach=mach, aoa=aoa)
+         if already_run:
+             # Already have a result
+             if self.verbosity > 1:
+@@ -46,12 +48,13 @@ class OPM(FlowSolver):
+ 
+         else:
+             # Get flow
+-            flow = self._last_solve_freestream
++            free_flow = self._last_solve_freestream
++            nozzle_flow = self._last_solve_eng_outflow
+ 
+             # Construct progress bar
+             if self.verbosity > 0:
+                 print()
+-                desc = f"Running OPM solver at AoA = {flow.aoa:.2f} and Mach = {flow.M:.2f}"
++                desc = f"Running OPM solver at AoA = {free_flow.aoa:.2f} and Mach = {free_flow.M:.2f}"
+                 pbar = tqdm(
+                     total=len(self.cells),
+                     desc=desc,
+@@ -65,6 +68,17 @@ class OPM(FlowSolver):
+             bad = 0
+             total = 0
+             for cell in self.cells:
++
++                dont_calc = False
++                # Check which flow state to use
++                if cell.tag == PatchTag.FREE_STREAM:
++                    flow = free_flow
++                elif cell.tag == PatchTag.NOZZLE:
++                    flow = nozzle_flow
++                elif cell.tag == PatchTag.INLET or cell.tag == PatchTag.OUTLET:
++                    flow = free_flow
++                    dont_calc = True
++
+                 # Calculate orientation of cell to flow
+                 theta = np.pi / 2 - np.arccos(
+                     np.dot(flow.direction.vec, cell.n.vec)
+@@ -75,7 +89,11 @@ class OPM(FlowSolver):
+                 r = cell.c - cog
+ 
+                 # Solve flow for this cell
+-                if theta < 0:
++                if dont_calc:
++                    # ignore cell - is part of inlet or outlet
++                    M2, p2, T2 = (flow.M, 0.0, flow.T)
++                    method = -1
++                elif theta < 0:
+                     # Rearward facing cell
+                     if theta < np.deg2rad(self.PM_ANGLE_THRESHOLD):
+                         M2, p2, T2 = (flow.M, 0.0, flow.T)
+diff --git a/src/pysagas/cfd/solver.py b/pysagas/cfd/solver.py
+similarity index 92%
+rename from src/pysagas/cfd/solver.py
+rename to pysagas/cfd/solver.py
+index f354371..12ea152 100644
+--- a/src/pysagas/cfd/solver.py
++++ b/pysagas/cfd/solver.py
+@@ -6,8 +6,9 @@ import numpy as np
+ import pandas as pd
+ from pysagas import banner
+ from abc import ABC, abstractmethod
+-from typing import List, Optional, Dict
++from typing import List, Optional, Dict, Union
+ from pysagas import Cell, FlowState, Vector
++from gdtk.geom.vector3 import Vector3
+ 
+ 
+ class AbstractFlowSolver(ABC):
+@@ -43,6 +44,7 @@ class FlowSolver(AbstractFlowSolver):
+         self,
+         cells: List[Cell],
+         freestream: Optional[FlowState] = None,
++        eng_outflow: Optional[FlowState] = None,
+         verbosity: Optional[int] = 1,
+     ) -> None:
+         """Instantiates the flow solver.
+@@ -65,8 +67,10 @@ class FlowSolver(AbstractFlowSolver):
+ 
+         self.cells = cells
+         self.freestream = freestream
++        self.eng_outflow = eng_outflow
+         self.verbosity = verbosity
+         self._last_solve_freestream: FlowState = None
++        self._last_solve_eng_outflow: FlowState = None
+         self._last_sens_freestream: FlowState = None
+ 
+         # Results
+@@ -81,6 +85,7 @@ class FlowSolver(AbstractFlowSolver):
+     def solve(
+         self,
+         freestream: Optional[FlowState] = None,
++        eng_outflow: Optional[FlowState] = None,
+         mach: Optional[float] = None,
+         aoa: Optional[float] = None,
+     ) -> bool:
+@@ -92,6 +97,10 @@ class FlowSolver(AbstractFlowSolver):
+             The free-stream flow state. The default is the freestream provided
+             upon instantiation of the solver.
+ 
++        eng_outflow : Flowstate, optional
++            The outflow conditions of the engine (to be used for NOZZLE solve).
++            The default is the None.
++
+         mach : float, optional
+             The free-stream Mach number. The default is that specified in
+             the freestream flow state.
+@@ -132,12 +141,18 @@ class FlowSolver(AbstractFlowSolver):
+             if mach or aoa:
+                 print("Using freestream provided; ignoring Mach/aoa provided.")
+ 
++        if not eng_outflow and self.eng_outflow:
++            # if eng_outflow provided only on instantiation
++            eng_outflow = self.eng_outflow
++
+         # Check if already solved
+-        if self._last_solve_freestream and freestream == self._last_solve_freestream:
++        if (self._last_solve_freestream and freestream == self._last_solve_freestream
++                and self._last_solve_eng_outflow and eng_outflow == self._last_solve_eng_outflow):
+             return True
+         else:
+             # Update last solve freestream and continue
+             self._last_solve_freestream = freestream
++            self._last_solve_eng_outflow = eng_outflow
+             return False
+ 
+     def solve_sens(
+@@ -249,7 +264,7 @@ class FlowSolver(AbstractFlowSolver):
+         mesh_obj.write(f"{name}.vtk")
+ 
+     @staticmethod
+-    def body_to_wind(v: Vector, aoa: float):
++    def body_to_wind(v: Union[Vector, Vector3], aoa: float):
+         """Converts a vector from body axes to wind axes.
+ 
+         Parameters
+@@ -332,6 +347,9 @@ class FlowResults:
+     freestream : FlowState
+         The freestream flow state.
+ 
++    eng_outflow : Optional, FlowState
++        The engine's outlet flow state (for nozzle calculation). default - None
++
+     net_force : pd.DataFrame
+         The net force in cartesian coordinate frame (x,y,z).
+ 
+@@ -340,7 +358,7 @@ class FlowResults:
+     """
+ 
+     def __init__(
+-        self, freestream: FlowState, net_force: Vector, net_moment: Vector
++        self, freestream: FlowState, net_force: Union[Vector, Vector3], net_moment: Union[Vector, Vector3],
+     ) -> None:
+         self.freestream = freestream
+         self.net_force = net_force
+diff --git a/src/pysagas/flow.py b/pysagas/flow.py
+similarity index 83%
+rename from src/pysagas/flow.py
+rename to pysagas/flow.py
+index affc052..88fd841 100644
+--- a/src/pysagas/flow.py
++++ b/pysagas/flow.py
+@@ -1,5 +1,7 @@
+ import numpy as np
+-from pysagas.geometry import Vector
++from .geometry.vector import Vector
++from typing import Union
++from gdtk.geom.vector3 import Vector3
+ 
+ 
+ class GasState:
+@@ -36,7 +38,7 @@ class GasState:
+         self._gamma = gamma
+ 
+     def __str__(self) -> str:
+-        return f"Mach {self.M} flow condition with P = {self.P}, T = {self.T}."
++        return f"Mach {self.M:.3f} flow condition with P = {self.P:.3e} Pa, T = {self.T:.1f} K."
+ 
+     def __repr__(self) -> str:
+         return f"Flow(M={self.M}, P={self.P}, T={self.T})"
+@@ -83,6 +85,10 @@ class GasState:
+     def gamma(self):
+         return self._gamma
+ 
++    @property
++    def Cp(self):
++        return self.R*self._gamma / (self._gamma-1)
++
+ 
+ class FlowState(GasState):
+     """An ideal gas state defined by Mach number, pressure and
+@@ -94,7 +100,7 @@ class FlowState(GasState):
+         mach: float,
+         pressure: float,
+         temperature: float,
+-        direction: Vector = None,
++        direction: Union[Vector, Vector3] = None,
+         aoa: float = 0.0,
+         gamma: float = 1.4,
+     ) -> None:
+@@ -122,12 +128,15 @@ class FlowState(GasState):
+             The ratio of specific heats. The default is 1.4.
+         """
+         super().__init__(mach, pressure, temperature, gamma)
+-        if direction:
+-            # Use direction provided
+-            self.direction = direction.unit
+-        else:
++        if direction is None:
+             # Use AoA to calculate direction
+-            self.direction = Vector(1, 1 * np.tan(np.deg2rad(aoa)), 0).unit
++            direction_vec = Vector(1, 1 * np.tan(np.deg2rad(aoa)), 0)
++        elif isinstance(direction, Vector3):
++            # Convert provided direction to Vector and use it
++            direction_vec = Vector(x=direction.x, y=direction.y, z=direction.z)
++        else:
++            direction_vec = direction
++        self.direction = direction_vec.unit
+ 
+     def __eq__(self, other: object) -> bool:
+         if not isinstance(other, FlowState):
+diff --git a/pysagas/geometry/__init__.py b/pysagas/geometry/__init__.py
+new file mode 100644
+index 0000000..d95c464
+--- /dev/null
++++ b/pysagas/geometry/__init__.py
+@@ -0,0 +1,2 @@
++from .vector import Vector
++from .cell import Cell, DegenerateCell
+diff --git a/src/pysagas/geometry/cell.py b/pysagas/geometry/cell.py
+similarity index 98%
+rename from src/pysagas/geometry/cell.py
+rename to pysagas/geometry/cell.py
+index e276379..eba0f9b 100644
+--- a/src/pysagas/geometry/cell.py
++++ b/pysagas/geometry/cell.py
+@@ -1,7 +1,8 @@
+ from __future__ import annotations
+ import numpy as np
+ import pysagas.flow
+-from pysagas.geometry import Vector
++from hypervehicle.utilities import PatchTag
++from .vector import Vector
+ from numpy.typing import ArrayLike
+ from typing import Union, List, Optional
+ 
+@@ -52,6 +53,9 @@ class Cell:
+ 
+     sensitivities : np.array
+         An array containing the [x,y,z] force sensitivities of the cell.
++
++    tag : PatchTag
++        An PatchTag(Enum) value to define which FlowState to use. Default: PatchTag.FREE_STREAM
+     """
+ 
+     def __init__(
+@@ -101,6 +105,9 @@ class Cell:
+         self.sensitivities = None
+         self.moment_sensitivities = None
+ 
++        # tags
++        self.tag = PatchTag.FREE_STREAM
++
+         # Cell attributes
+         self.attributes = {}
+ 
+@@ -606,6 +613,9 @@ class Cell:
+         )
+         return c_sens
+ 
++    def add_tag(self, tag):
++        self.tag = PatchTag(tag)
++
+ 
+ class DegenerateCell(Exception):
+     """Exception raised for degenerate cells."""
+diff --git a/src/pysagas/geometry/parsers.py b/pysagas/geometry/parsers.py
+similarity index 93%
+rename from src/pysagas/geometry/parsers.py
+rename to pysagas/geometry/parsers.py
+index 0a6bab1..45eb467 100644
+--- a/src/pysagas/geometry/parsers.py
++++ b/pysagas/geometry/parsers.py
+@@ -154,10 +154,13 @@ class MeshIO(Parser):
+         super().__init__(filepath, verbosity)
+ 
+     def load(self) -> List[Cell]:
+-        def mp_wrapper(face):
++        def mp_wrapper(args):
++            ind, face = args
+             vertices = [Vector.from_coordinates(mesh_vertices[i]) for i in face]
+             try:
+                 cell = Cell.from_points(vertices, face_ids=face)
++                if tags is not None:
++                    cell.add_tag(tags[ind])
+             except:
+                 cell = None
+             return cell
+@@ -168,14 +171,22 @@ class MeshIO(Parser):
+         if self.verbosity > 0:
+             print("\nTranscribing cells.")
+ 
+-        # Create multiprocessing pool to construct cells
+         cells = []
+-        pool = mp.Pool()
+         mesh_vertices = mesh_obj.points
+-        for result in pool.map(mp_wrapper, mesh_obj.cells[0].data):
++        tags = mesh_obj.cell_data['tag'][0] if 'tag' in mesh_obj.cell_data else None
++
++        # Create multiprocessing pool to construct cells
++        pool = mp.Pool()
++        for result in pool.map(mp_wrapper, enumerate(mesh_obj.cells[0].data)):
+             if result is not None:
+                 cells.append(result)
+ 
++        # Submit tasks single (debug mode)
++        # for ind, a in enumerate(mesh_obj.cells[0].data):
++        #     result = mp_wrapper((ind, a))
++        #     if result is not None:
++        #         cells.append(result)
++
+         if self.verbosity > 0:
+             print("Done.")
+ 
+diff --git a/pysagas/geometry/vector.py b/pysagas/geometry/vector.py
+new file mode 100644
+index 0000000..e734087
+--- /dev/null
++++ b/pysagas/geometry/vector.py
+@@ -0,0 +1,144 @@
++from __future__ import annotations
++import numpy as np
++from typing import Union
++
++
++class Vector:
++    """An N-dimensional vector."""
++
++    PRECISION = 3
++
++    def __init__(self, x: float = None, y: float = None, z: float = None):
++        """Define a new vector.
++
++        Parameters
++        ----------
++        x : float, optional
++            The x-component of the vector.
++
++        y : float, optional
++            The y-component of the vector.
++
++        z : float, optional
++            The z-component of the vector.
++        """
++        self._x = x
++        self._y = y
++        self._z = z
++
++        self._non_none = [str(i) for i in [x, y, z] if i is not None]
++        self._round_non_none = [
++            str(round(i, self.PRECISION)) for i in [x, y, z] if i is not None
++        ]
++        self._dimensions = len(self._non_none)
++
++    def __str__(self) -> str:
++        s = f"{self._dimensions}-dimensional vector: ({', '.join(self._round_non_none)})"
++        return s
++
++    def __repr__(self) -> str:
++        return f"Vector({', '.join(self._round_non_none)})"
++
++    def __neg__(self):
++        """Returns the vector pointing in the opposite direction."""
++        return Vector(x=-1 * self.x, y=-1 * self.y, z=-1 * self.z)
++
++    def __add__(self, other):
++        """Element-wise vector addition.
++
++        Parameters
++        ----------
++        other : Vector
++            Another Vector object to be added. This Vector must be of the same
++            dimension as the one it is being added to.
++        """
++        if not isinstance(other, Vector):
++            raise Exception(f"Cannot add a {type(other)} to a vector.")
++        return Vector(x=self.x + other.x, y=self.y + other.y, z=self.z + other.z)
++
++    def __sub__(self, other):
++        """Element-wise vector subtraction.
++
++        Parameters
++        ----------
++        other : Vector
++            Another Vector object to be added. This Vector must be of the same
++            dimension as the one it is being added to.
++        """
++        if not isinstance(other, Vector):
++            raise Exception(f"Cannot add a {type(other)} to a vector.")
++        return Vector(x=self.x - other.x, y=self.y - other.y, z=self.z - other.z)
++
++    def __truediv__(self, denominator: Union[float, int]):
++        """Element-wise vector division.
++
++        Parameters
++        ----------
++        denominator : float | int
++            The denominator to use in the division.
++        """
++        return Vector(
++            x=self.x / denominator, y=self.y / denominator, z=self.z / denominator
++        )
++
++    def __mul__(self, multiple: Union[float, int]):
++        """Element-wise vector multiplication.
++
++        Parameters
++        ----------
++        multiple : float | int
++            The multiple to use in the multiplication.
++        """
++        return Vector(x=self.x * multiple, y=self.y * multiple, z=self.z * multiple)
++
++    def __eq__(self, other: object) -> bool:
++        if not isinstance(other, Vector):
++            raise Exception(f"Cannot compare a {type(other)} to a vector.")
++        return (self.x == other.x) & (self.y == other.y) & (self.z == other.z)
++
++    @property
++    def x(self) -> float:
++        return self._x
++
++    @property
++    def y(self) -> float:
++        return self._y
++
++    @property
++    def z(self) -> float:
++        return self._z
++
++    @property
++    def vec(self) -> np.array:
++        """The vector represented as a Numpy array."""
++        return np.array([float(i) for i in self._non_none])
++
++    @property
++    def unit(self) -> Vector:
++        """The unit vector associated with the Vector."""
++        return self / self.norm
++
++    @property
++    def norm(self) -> Vector:
++        """The norm associated with the Vector."""
++        return np.linalg.norm(self.vec)
++
++    @classmethod
++    def from_coordinates(cls, coordinates: np.array) -> Vector:
++        """Constructs a Vector object from an array of coordinates.
++
++        Parameters
++        ----------
++        coordinates : np.array
++            The coordinates of the vector.
++
++        Returns
++        -------
++        Vector
++
++        Examples
++        --------
++        >>> Vector.from_coordinates([1,2,3])
++        Vector(1, 2, 3)
++        """
++        return cls(*coordinates)
+diff --git a/src/pysagas/optimisation/__init__.py b/pysagas/optimisation/__init__.py
+similarity index 100%
+rename from src/pysagas/optimisation/__init__.py
+rename to pysagas/optimisation/__init__.py
+diff --git a/src/pysagas/optimisation/cart3d/__init__.py b/pysagas/optimisation/cart3d/__init__.py
+similarity index 100%
+rename from src/pysagas/optimisation/cart3d/__init__.py
+rename to pysagas/optimisation/cart3d/__init__.py
+diff --git a/src/pysagas/optimisation/cart3d/cart3d.py b/pysagas/optimisation/cart3d/cart3d.py
+similarity index 97%
+rename from src/pysagas/optimisation/cart3d/cart3d.py
+rename to pysagas/optimisation/cart3d/cart3d.py
+index 68e270a..c2f5cd7 100644
+--- a/src/pysagas/optimisation/cart3d/cart3d.py
++++ b/pysagas/optimisation/cart3d/cart3d.py
+@@ -420,37 +420,28 @@ def evaluate_objective(x: dict) -> dict:
+         properties = None
+         cog = None
+ 
+-    # Call objective function
+-    failed = False
+     if sim_success:
+         # Evaluate objective function
+-        funcs: dict[str, dict[str, list]] = obj_cb(
++        funcs = obj_cb(
+             loads_dict=loads_dict,
+             volmass=volmass,
+             properties=properties,
+             cog=cog,
+         )
+-
+-        # Check for nans
+-        for v1 in funcs.values():
+-            if any(np.isnan(v1)):
+-                failed = True
++        failed = False
+ 
+     else:
+         # Simulation failed
+-        # funcs = {}
++        funcs = {}
+         loads_dict = {"C_L-entire": 0, "C_D-entire": 1}
+-        # funcs = obj_cb(
+-        #     loads_dict=loads_dict,
+-        #     volmass=volmass,
+-        #     properties=properties,
+-        #     cog=cog,
+-        # )
++        funcs = obj_cb(
++            loads_dict=loads_dict,
++            volmass=volmass,
++            properties=properties,
++            cog=cog,
++        )
+         failed = True
+ 
+-    if failed:
+-        funcs = {}
+-
+     return funcs, failed
+ 
+ 
+@@ -562,7 +553,7 @@ def evaluate_gradient(x: dict, objective: dict) -> dict:
+     # Call function
+     failed = False
+     try:
+-        jac: dict[str, dict[str, list]] = jac_cb(
++        jac = jac_cb(
+             parameters=x,
+             coef_sens=coef_sens,
+             moment_coef_sens=moment_coef_sens,
+@@ -575,18 +566,10 @@ def evaluate_gradient(x: dict, objective: dict) -> dict:
+             cog_sens=cog_sens,
+         )
+ 
+-        # Check for nans
+-        for v1 in jac.values():
+-            for v2 in v1.values():
+-                if any(np.isnan(v2)):
+-                    failed = True
+-
+     except Exception as e:
+         print(f"Exception calling jacobian callback: {e}")
+-        failed = True
+-
+-    if failed:
+         jac = {}
++        failed = True
+ 
+     return jac, failed
+ 
+@@ -710,7 +693,6 @@ def _run_simulation(no_attempts: int = 3):
+             os.chdir(sim_dir)
+             target_adapt = _infer_adapt(sim_dir)
+             c3d_donefile = os.path.join(sim_dir, target_adapt, "FLOW", "DONE")
+-            _c3dprepper._log(f"Waiting for DONE file: {c3d_donefile}")
+             run_cmd = "./aero.csh restart"
+             _restarts = 0
+             if not os.path.exists(c3d_donefile):
+diff --git a/src/pysagas/optimisation/cart3d/utilities.py b/pysagas/optimisation/cart3d/utilities.py
+similarity index 100%
+rename from src/pysagas/optimisation/cart3d/utilities.py
+rename to pysagas/optimisation/cart3d/utilities.py
+diff --git a/src/pysagas/optimisation/opm/__init__.py b/pysagas/optimisation/opm/__init__.py
+similarity index 100%
+rename from src/pysagas/optimisation/opm/__init__.py
+rename to pysagas/optimisation/opm/__init__.py
+diff --git a/src/pysagas/optimisation/opm/opm.py b/pysagas/optimisation/opm/opm.py
+similarity index 100%
+rename from src/pysagas/optimisation/opm/opm.py
+rename to pysagas/optimisation/opm/opm.py
+diff --git a/src/pysagas/optimisation/optimiser.py b/pysagas/optimisation/optimiser.py
+similarity index 100%
+rename from src/pysagas/optimisation/optimiser.py
+rename to pysagas/optimisation/optimiser.py
+diff --git a/src/pysagas/sensitivity/__init__.py b/pysagas/sensitivity/__init__.py
+similarity index 100%
+rename from src/pysagas/sensitivity/__init__.py
+rename to pysagas/sensitivity/__init__.py
+diff --git a/src/pysagas/sensitivity/calculator.py b/pysagas/sensitivity/calculator.py
+similarity index 67%
+rename from src/pysagas/sensitivity/calculator.py
+rename to pysagas/sensitivity/calculator.py
+index f631090..0ef5fe0 100644
+--- a/src/pysagas/sensitivity/calculator.py
++++ b/pysagas/sensitivity/calculator.py
+@@ -1,5 +1,8 @@
+ import numpy as np
+ import pandas as pd
++
++from HyperPro.Sensitivity import HP_SensResults
++from hypervehicle.utilities import PatchTag
+ from pysagas.flow import FlowState
+ from abc import ABC, abstractmethod
+ from pysagas.geometry import Vector, Cell
+@@ -10,6 +13,7 @@ from pysagas.sensitivity.models import (
+     piston_sensitivity,
+     van_dyke_sensitivity,
+     isentropic_sensitivity,
++    freestream_isentropic_sensitivity,
+ )
+ 
+ 
+@@ -69,6 +73,7 @@ class SensitivityCalculator(AbstractSensitivityCalculator):
+ 
+     def __init__(self, **kwargs) -> None:
+         self.cells: list[Cell] = None
++        self.verbosity = 1
+ 
+     def calculate(
+         self,
+@@ -111,9 +116,11 @@ class SensitivityCalculator(AbstractSensitivityCalculator):
+             for d in ["x", "y", "z"]:
+                 params_sens_cols.append(f"d{d}d_{p}")
+ 
++        kwargs = {'eng_sens': self.eng_sens, 'eng_outflow': self.eng_outflow}
++
+         # Calculate force sensitivity
+         F_sense, M_sense = self.net_sensitivity(
+-            cells=self.cells, sensitivity_model=sensitivity_model, cog=cog, **kwargs
++            cells=self.cells, sensitivity_model=sensitivity_model, cog=cog, **kwargs,
+         )
+ 
+         # Construct dataframes to return
+@@ -196,16 +203,56 @@ class SensitivityCalculator(AbstractSensitivityCalculator):
+             if sensitivity_function is None:
+                 raise Exception("Invalid sensitivity method specified.")
+ 
+-        dFdp = 0
+-        dMdp = 0
++        dFdp = np.zeros(shape=(cells[0].dndp.shape[1], 3))
++        dMdp = np.zeros(shape=(cells[0].dndp.shape[1], 3))
+         for cell in cells:
+-            # Calculate force sensitivity
+-            dFdp_c, dMdp_c = SensitivityCalculator.cell_sensitivity(
+-                cell=cell, sensitivity_function=sensitivity_function, cog=cog, **kwargs
+-            )
+ 
+-            dFdp += dFdp_c
+-            dMdp += dMdp_c
++            # Check which flow state to use
++            if cell.tag == PatchTag.INLET or cell.tag == PatchTag.OUTLET or cell.attributes['method'] == -1:  # don't calculate
++                dFdp_c = np.zeros(shape=(cells[0].dndp.shape[1], 3))
++                dMdp_c = np.zeros(shape=(cells[0].dndp.shape[1], 3))
++                dFdp_e = np.zeros(shape=(cells[0].dndp.shape[1], 3))
++                dMdp_e = np.zeros(shape=(cells[0].dndp.shape[1], 3))
++
++            elif cell.tag == PatchTag.FREE_STREAM: #free stream
++                # Calculate force sensitivity to geometrical changes (no engine sens)
++                dFdp_c, dMdp_c = SensitivityCalculator.cell_sensitivity(
++                    cell=cell, sensitivity_function=sensitivity_function, cog=cog, **kwargs
++                )
++
++                dFdp_e = np.zeros(shape=(cells[0].dndp.shape[1], 3))
++                dMdp_e = np.zeros(shape=(cells[0].dndp.shape[1], 3))
++
++            elif cell.tag == PatchTag.NOZZLE: # nozzle
++                # Calculate force sensitivity to geometrical changes (no engine sens)
++                dFdp_c, dMdp_c = SensitivityCalculator.cell_sensitivity(
++                    cell=cell, sensitivity_function=sensitivity_function, cog=cog, **kwargs
++                )
++
++                # Calculate force sensitivity to engine outflow changes
++                dFdp_e, dMdp_e = SensitivityCalculator.cell_eng_sensitivity(
++                    cell=cell,
++                    cog=cog,
++                    inflow=kwargs['eng_outflow'],
++                    inflow_sens=kwargs['eng_sens'],
++                    **kwargs
++                )
++
++            dFdp += dFdp_c + dFdp_e
++            dMdp += dMdp_c + dMdp_e
++
++        # Add HP propolsion force and moment sensitivity
++        F_eng_sens = np.zeros(shape=(cells[0].dndp.shape[1], 3))
++        M_eng_sens = np.zeros(shape=(cells[0].dndp.shape[1], 3))
++        if kwargs['eng_sens'] is not None:
++            for p_i in range(cells[0].dndp.shape[1]):
++                directions = ['x','y', 'z']
++                for i in range(3):
++                    F_eng_sens[p_i, i] = kwargs['eng_sens'].loc[f'F{directions[i]}'][p_i]
++                    M_eng_sens[p_i, i] = kwargs['eng_sens'].loc[f'M{directions[i]}'][p_i]
++
++        dFdp += F_eng_sens
++        dMdp += M_eng_sens
+ 
+         return dFdp, dMdp
+ 
+@@ -258,9 +305,7 @@ class SensitivityCalculator(AbstractSensitivityCalculator):
+             for i, direction in enumerate(all_directions):
+                 dF = (
+                     dPdp * cell.A * np.dot(cell.n.vec, direction.vec)
+-                    + cell.flowstate.P
+-                    * cell.dAdp[p_i]
+-                    * np.dot(cell.n.vec, direction.vec)
++                    + cell.flowstate.P * cell.dAdp[p_i] * np.dot(cell.n.vec, direction.vec)
+                     + cell.flowstate.P
+                     * cell.A
+                     * np.dot(-cell.dndp[:, p_i], direction.vec)
+@@ -278,6 +323,67 @@ class SensitivityCalculator(AbstractSensitivityCalculator):
+ 
+         return sensitivities, moment_sensitivities
+ 
++    @staticmethod
++    def cell_eng_sensitivity(
++            cell: Cell,
++            inflow: FlowState,
++            inflow_sens,
++            cog: Vector = Vector(0, 0, 0),
++            **kwargs,
++    ):
++    # ) -> Tuple[np.array, np.array]:
++        """Calculates force and moment sensitivities for a single cell.
++
++        Parameters
++        ----------
++        cell : Cell
++            The cell.
++
++        cog : Vector, optional
++            The reference centre of gravity, used in calculating the moment
++            sensitivities. The defualt is Vector(0,0,0).
++
++        Returns
++        --------
++        sensitivities : np.array
++            An array of shape n x 3, for a 3-dimensional cell with
++            n parameters.
++
++        See Also
++        --------
++        all_dfdp : a wrapper to calculate force sensitivities for many cells
++        """
++        # Initialisation
++        all_directions = [Vector(1, 0, 0), Vector(0, 1, 0), Vector(0, 0, 1)]
++        force_eng_sensitivities = np.zeros(shape=(cell.dndp.shape[1], 3))
++        moment_eng_sensitivities = np.zeros(shape=(cell.dndp.shape[1], 3))
++
++        # Calculate moment dependencies
++        r = cell.c - cog
++
++        # For each parameter
++        for p_i in range(cell.dndp.shape[1]):
++            # Calculate pressure sensitivity
++            dPdp = freestream_isentropic_sensitivity(cell=cell, p_i=p_i,
++                                        inflow=inflow, inflow_sens=inflow_sens,
++                                        **kwargs)
++
++            # Evaluate for sensitivities for each direction
++            for i, direction in enumerate(all_directions):
++                dF = (dPdp * cell.A * np.dot(cell.n.vec, direction.vec))
++                force_eng_sensitivities[p_i, i] = dF
++
++            # TODO - Add eng_sens to moment_sensitivities
++            # Now evaluate moment sensitivities
++            moment_eng_sensitivities[p_i, :] = np.cross(
++                r.vec, force_eng_sensitivities[p_i, :])
++
++        # Append to cell
++        cell.force_eng_sensitivities = force_eng_sensitivities
++        cell.moment_eng_sensitivities = moment_eng_sensitivities
++
++        return force_eng_sensitivities, moment_eng_sensitivities
++
+ 
+ class GenericSensitivityCalculator(SensitivityCalculator):
+     solver = "Generic Flow Solver"
+@@ -287,6 +393,8 @@ class GenericSensitivityCalculator(SensitivityCalculator):
+         cells: List[Cell],
+         sensitivity_filepath: Optional[str] = None,
+         cells_have_sens_data: Optional[bool] = False,
++        eng_sens: Optional[HP_SensResults] = None,
++        eng_outflow: Optional[FlowState] = None,
+         verbosity: Optional[int] = 1,
+         **kwargs,
+     ) -> None:
+@@ -317,6 +425,9 @@ class GenericSensitivityCalculator(SensitivityCalculator):
+         else:
+             self._pre_transcribed_cells = cells
+ 
++        self.eng_sens = eng_sens
++        self.eng_outflow = eng_outflow
++
+         self.sensdata = pd.read_csv(sensitivity_filepath)
+         self.verbosity = verbosity
+ 
+diff --git a/src/pysagas/sensitivity/cart3d/__init__.py b/pysagas/sensitivity/cart3d/__init__.py
+similarity index 100%
+rename from src/pysagas/sensitivity/cart3d/__init__.py
+rename to pysagas/sensitivity/cart3d/__init__.py
+diff --git a/src/pysagas/sensitivity/cart3d/cart3d.py b/pysagas/sensitivity/cart3d/cart3d.py
+similarity index 96%
+rename from src/pysagas/sensitivity/cart3d/cart3d.py
+rename to pysagas/sensitivity/cart3d/cart3d.py
+index 5b19d24..b309706 100644
+--- a/src/pysagas/sensitivity/cart3d/cart3d.py
++++ b/pysagas/sensitivity/cart3d/cart3d.py
+@@ -66,12 +66,8 @@ class Cart3DSensitivityCalculator(SensitivityCalculator):
+         self.verbosity = verbosity
+ 
+         # Check dimensionality
+-        l1 = len(self.sensdata)
+-        l2 = len(self.pointdata)
+-        if l1 != l2:
+-            raise ValueError(
+-                f"The sensitivity data does not match the point data ({l1} vs. {l2})."
+-            )
++        if len(self.sensdata) != len(self.pointdata):
++            raise ValueError("The sensitivity data does not match the point data.")
+ 
+         super().__init__(**kwargs)
+ 
+diff --git a/src/pysagas/sensitivity/cart3d/utilities.py b/pysagas/sensitivity/cart3d/utilities.py
+similarity index 100%
+rename from src/pysagas/sensitivity/cart3d/utilities.py
+rename to pysagas/sensitivity/cart3d/utilities.py
+diff --git a/pysagas/sensitivity/models.py b/pysagas/sensitivity/models.py
+new file mode 100644
+index 0000000..7a08999
+--- /dev/null
++++ b/pysagas/sensitivity/models.py
+@@ -0,0 +1,157 @@
++import numpy as np
++from pysagas import FlowState
++from pysagas.geometry import Cell
++
++
++def piston_sensitivity(cell: Cell, p_i: int, **kwargs):
++    """Calculates the pressure-parameter sensitivity using
++    local piston theory.
++
++    Parameters
++    ----------
++    cell : Cell
++        The cell object.
++
++    p_i : int
++        The index of the parameter to find the sensitivity for. This is used to
++        index cell.dndp.
++    """
++    M_l = cell.flowstate.M
++    if M_l < 1.0:
++        # Subsonic cell, skip
++        return 0
++
++    dPdp = (
++        cell.flowstate.rho
++        * cell.flowstate.a
++        * np.dot(cell.flowstate.vec, -cell.dndp[:, p_i])
++    )
++    return dPdp
++
++
++def van_dyke_sensitivity(
++    cell: Cell,
++    p_i,
++    **kwargs,
++):
++    """
++    Calculates the pressure-parameter sensitivity using
++    Van Dyke second-order theory.
++
++     Parameters
++    ----------
++    cell : Cell
++        The cell object.
++
++    p_i : int
++        The index of the parameter to find the sensitivity for. This is used to
++        index cell.dndp.
++    """
++    piston = piston_sensitivity(cell=cell, p_i=p_i)
++    M_l = cell.flowstate.M
++    dPdp = piston * M_l / (M_l**2 - 1) ** 0.5
++    return dPdp
++
++
++def isentropic_sensitivity(cell: Cell, p_i: int, **kwargs):
++    """Calculates the pressure-parameter sensitivity using
++    the isentropic flow relation directly."""
++    gamma = cell.flowstate.gamma
++    power = (gamma + 1) / (gamma - 1)
++    dPdW = (cell.flowstate.P * gamma / cell.flowstate.a) * (
++        1 + cell.flowstate.v * (gamma - 1) / (2 * cell.flowstate.a)
++    ) ** power
++    dWdn = -cell.flowstate.vec
++    dndp = cell.dndp[:, p_i]
++    dPdp = dPdW * np.dot(dWdn, dndp)
++    return dPdp
++
++
++def freestream_isentropic_sensitivity(cell: Cell, p_i: int, inflow: FlowState, inflow_sens, **kwargs):
++    """Calculates the pressure-parameter sensitivity, including
++    the sensitivity to the incoming flow state (for use on nozzle cells
++    where the engine outflow changes due to parameter change)
++
++    Parameters
++        ----------
++        cell : Cell
++            The cell to be analysed.
++
++        p_i : int
++            Index of the design variable (in inflow_sens) to differeciate with respect to
++
++        inflow : FlowState
++            "Free stream" of the infoming flow (sould be the engine combustor outflow for nozzle claculation)
++
++        inflow_sens :
++            HyperPro engine outflow sensitivities
++
++        Returns
++        --------
++        dPdp : np.array
++            The pressure sensitivity matrix with respect to the parameter.
++    """
++
++    gamma1 = inflow.gamma
++    gamma2 = cell.flowstate.gamma
++    M1 = inflow.M
++    M2 = cell.flowstate.M
++    P1 = inflow.P
++    P2 = cell.flowstate.P
++
++    beta1 = np.sqrt(M1 ** 2 - 1)
++    beta2 = np.sqrt(M2 ** 2 - 1)
++    fun1 = 1 + (gamma1 - 1) / 2 * M1 ** 2
++    fun2 = 1 + (gamma2 - 1) / 2 * M2 ** 2
++
++    # Calculate sens to inflow Mach number
++    dM2_dM1 = (M2 / M1) * (beta1 / beta2) * (fun2 / fun1)
++    t1 = M1 * fun1 ** (1/(gamma1-1)) * fun2 ** ((-gamma1)/(gamma1-1))
++    t2 = M2 * fun1 ** (gamma1 / (gamma1 - 1)) * fun2 ** ((1 - 2 * gamma1) / (gamma1 - 1)) * dM2_dM1
++    dP2_dM1 = P1 * gamma1 * (t1 - t2)
++
++
++    # Calculate sens to inflow pressure
++    dP2_dP1 = (fun1 / fun2) ** (gamma2 / (gamma2 - 1))
++
++    # Calculate sens to inflow aoa
++    dP2_daoa = M2 ** 2 / beta2 * gamma2 * P2
++
++    # Calculate sens to inflow gamma
++    gp1 = gamma1 + 1
++    gm1 = gamma1 - 1
++    fg = gp1 / gm1
++    fM = beta1**2 / fg
++    num1 = np.sqrt(fg) *(beta1 / gp1) ** 2
++    den1 = np.sqrt(fM) * (fM + 1)
++    num2 = 1 / gm1 * np.arctan(np.sqrt(fM))
++    den2 = np.sqrt(gm1 * gp1)
++    dnu_dg1 = num1 / den1 - num2 / den2
++
++    q = (fun1/fun2)**(gamma1/gm1)
++    r1 = gamma1 * (M1 ** 2 - (M2 ** 2 * fun1) / fun2)
++    r2 = 2*gm1*fun1
++    s1 = 1/gm1 - gamma1/(gm1**2)
++    s2 = np.log(fun1/fun2)
++    df_dg = q*(r1/r2 + s1*s2)
++
++    dP2_dg1 = P1*df_dg - dP2_daoa*dnu_dg1
++
++    # sum contributions
++    dPdp = (  dP2_dM1 * inflow_sens.loc['M'][p_i]
++            + dP2_dP1 * inflow_sens.loc['P'][p_i]
++            + dP2_daoa * inflow_sens.loc['flow_angle'][p_i]
++            + dP2_dg1 * inflow_sens.loc['gamma'][p_i])
++
++    return dPdp
++
++
++
++
++
++
++
++
++
++
++
+diff --git a/src/pysagas/utilities.py b/pysagas/utilities.py
+similarity index 75%
+rename from src/pysagas/utilities.py
+rename to pysagas/utilities.py
+index c30c55b..738c465 100644
+--- a/src/pysagas/utilities.py
++++ b/pysagas/utilities.py
+@@ -61,39 +61,33 @@ def add_sens_data(
+             leave=True,
+         )
+ 
+-    # Perform graph matching first
+-    pts_xyz = [[[p.x, p.y, p.z] for p in [c.p0, c.p1, c.p2]] for c in cells]
+-    pts_xyz = np.array(pts_xyz).reshape(-1, 3)
+-    data_xyz = np.array([data["x"], data["y"], data["z"]]).T
+-    from scipy.spatial.distance import cdist
+-
+-    dist = cdist(pts_xyz, data_xyz)
+-    min_idx = np.argmin(dist, axis=1)  # index of min distance to data for each cell
+-    #  min_dist = np.min(dist, axis=1) # value of min distance to data for each cell
+-
+     matched_points = 0
+     total_points = 0
+     skipped_cells = 0
+     total_cells = 0
+-    for cell_idx, cell in enumerate(cells):
++    for cell in cells:
+         # Check if cell already has sensitivity data
+         total_cells += 1
+         if cell.dvdp is None or force:
+             # Initialise sensitivity
+             dvdp = np.zeros((9, len(parameters)))
+-            for pt_idx in range(3):
++            for i, point in enumerate([cell.p0, cell.p1, cell.p2]):
++                match_x = (point.x - data["x"]).abs() < match_tolerance
++                match_y = (point.y - data["y"]).abs() < match_tolerance
++                match_z = (point.z - data["z"]).abs() < match_tolerance
++
++                match = match_x & match_y & match_z
+                 try:
+-                    # Optional chack that distance is less than threshold.
+-                    #  if np.abs(min_dist[3*cell_idx + pt_idx]) < match_tolerance:
+-                    matched_data = data.iloc[min_idx[3 * cell_idx + pt_idx]][param_cols]
++                    # Get match
++                    matched_data = data[match].iloc[0][param_cols]
+ 
+                     # Round off infinitesimally small values
+                     matched_data[abs(matched_data) < rounding_tolerance] = 0
+ 
+-                    # avoid slow string indexing
+-                    dvdp[3 * pt_idx : 3 * (pt_idx + 1), :] = (
+-                        matched_data.to_numpy().reshape(-1, 3).T
+-                    )
++                    for j, p in enumerate(parameters):
++                        # For each parameter (column)
++                        for k, c in enumerate(["x", "y", "z"]):
++                            dvdp[3 * i + k, j] = matched_data[f"d{c}d{p}"]
+ 
+                     # Update match count
+                     matched_points += 1
+diff --git a/setup.py b/setup.py
+new file mode 100644
+index 0000000..b25da79
+--- /dev/null
++++ b/setup.py
+@@ -0,0 +1,74 @@
++import codecs
++import os.path
++import setuptools
++
++
++def read(rel_path):
++    here = os.path.abspath(os.path.dirname(__file__))
++    with codecs.open(os.path.join(here, rel_path), "r") as fp:
++        return fp.read()
++
++
++def get_version(rel_path):
++    for line in read(rel_path).splitlines():
++        if line.startswith("__version__"):
++            delim = '"' if '"' in line else "'"
++            return line.split(delim)[1]
++    else:
++        raise RuntimeError("Unable to find version string.")
++
++
++# Define extra dependencies
++dev_dep = ["pytest >= 7.1.1", "black >= 22.10.0", "commitizen >= 2.35.0", "pre-commit"]
++docs_dep = [
++    "sphinx == 5.3.0",
++    "sphinx-rtd-theme == 1.1.1",
++    "sphinx-copybutton >= 0.5.0",
++    "sphinx-inline-tabs >= 2022.1.2b11",
++    "myst-parser >= 0.18.1",
++    "sphinx-autobuild >= 2021.3.14",
++]
++all_dep = dev_dep + docs_dep
++
++# Load README
++with open("README.md", "r", encoding="utf-8") as fh:
++    long_description = fh.read()
++
++setuptools.setup(
++    name="hypysagas",
++    version=get_version("pysagas/__init__.py"),
++    author="Kieran Mackle",
++    author_email="kemackle98@gmail.com",
++    description="Python Sensitivity Approximations for Geometric-Aerodynamic Surfaces",
++    long_description=long_description,
++    long_description_content_type="text/markdown",
++    project_urls={
++        "Bug Tracker": "https://github.com/kieran-mackle/pysagas/issues",
++        "Source Code": "https://github.com/kieran-mackle/pysagas",
++    },
++    classifiers=[
++        "Programming Language :: Python :: 3.7",
++        "Programming Language :: Python :: 3.8",
++        "Programming Language :: Python :: 3.9",
++    ],
++    package_dir={"": "."},
++    packages=setuptools.find_packages(where="."),
++    python_requires=">=3.7",
++    install_requires=[
++        "numpy >= 1.23.5",
++        "pandas >= 1.5.2",
++        "tqdm >= 4.64.1",
++        "art >= 5.8",
++        "meshio >= 5.3.4",
++        "matplotlib",
++        "scipy >= 1.10.1",
++    ],
++    extras_require={
++        "dev": dev_dep,
++        "all": all_dep,
++    },
++    setup_requires=[
++        "setuptools_git",
++        "setuptools_scm",
++    ],
++)
+diff --git a/src/pysagas/geometry/__init__.py b/src/pysagas/geometry/__init__.py
+deleted file mode 100644
+index ab01e26..0000000
+--- a/src/pysagas/geometry/__init__.py
++++ /dev/null
+@@ -1,2 +0,0 @@
+-from hypervehicle.geometry.vector import Vector3 as Vector
+-from .cell import Cell, DegenerateCell
+diff --git a/src/pysagas/sensitivity/models.py b/src/pysagas/sensitivity/models.py
+deleted file mode 100644
+index 7d357dd..0000000
+--- a/src/pysagas/sensitivity/models.py
++++ /dev/null
+@@ -1,70 +0,0 @@
+-import numpy as np
+-from pysagas.geometry import Cell
+-
+-
+-def piston_sensitivity(cell: Cell, p_i: int, **kwargs):
+-    """Calculates the pressure-parameter sensitivity using
+-    local piston theory.
+-
+-    Parameters
+-    ----------
+-    cell : Cell
+-        The cell object.
+-
+-    p_i : int
+-        The index of the parameter to find the sensitivity for. This is used to
+-        index cell.dndp.
+-    """
+-    M_l = cell.flowstate.M
+-    if M_l < 1.0:
+-        # Subsonic cell, skip
+-        return 0
+-
+-    dPdp = (
+-        cell.flowstate.rho
+-        * cell.flowstate.a
+-        * np.dot(cell.flowstate.vec, -cell.dndp[:, p_i])
+-    )
+-    return dPdp
+-
+-
+-def van_dyke_sensitivity(
+-    cell: Cell,
+-    p_i,
+-    **kwargs,
+-):
+-    """
+-    Calculates the pressure-parameter sensitivity using
+-    Van Dyke second-order theory.
+-
+-     Parameters
+-    ----------
+-    cell : Cell
+-        The cell object.
+-
+-    p_i : int
+-        The index of the parameter to find the sensitivity for. This is used to
+-        index cell.dndp.
+-    """
+-    M_l = cell.flowstate.M
+-    if M_l < 1.0:
+-        # Subsonic cell, skip
+-        return 0
+-
+-    piston = piston_sensitivity(cell=cell, p_i=p_i)
+-    dPdp = piston * M_l / (M_l**2 - 1) ** 0.5
+-    return dPdp
+-
+-
+-def isentropic_sensitivity(cell: Cell, p_i: int, **kwargs):
+-    """Calculates the pressure-parameter sensitivity using
+-    the isentropic flow relation directly."""
+-    gamma = cell.flowstate.gamma
+-    power = (gamma + 1) / (gamma - 1)
+-    dPdW = (cell.flowstate.P * gamma / cell.flowstate.a) * (
+-        1 + cell.flowstate.v * (gamma - 1) / (2 * cell.flowstate.a)
+-    ) ** power
+-    dWdn = -cell.flowstate.vec
+-    dndp = cell.dndp[:, p_i]
+-    dPdp = dPdW * np.dot(dWdn, dndp)
+-    return dPdp
+diff --git a/tests/test_3d_ramp.py b/tests/test_3d_ramp.py
+index db60fc1..e81c351 100644
+--- a/tests/test_3d_ramp.py
++++ b/tests/test_3d_ramp.py
+@@ -1,10 +1,9 @@
+ import numpy as np
+ 
+ np.seterr(all="ignore")
+-
++import gdtk.ideal_gas_flow as igf
+ from pysagas.geometry import Vector, Cell
+ from pysagas.flow import GasState, FlowState
+-from pysagas.cfd.oblique_prandtl_meyer import OPM
+ from pysagas.sensitivity.calculator import SensitivityCalculator
+ 
+ 
+@@ -25,10 +24,8 @@ def calculate_pressures(flow: FlowState, theta: float) -> float:
+     P2 : float
+         The pressure behind the oblique shock.
+     """
+-    beta = OPM.oblique_beta(
+-        M1=flow.M, theta=abs(theta), gamma=flow.gamma, tolerance=1.0e-6
+-    )
+-    P2_P1 = OPM.oblique_p2_p1(flow.M, beta, gamma=flow.gamma)
++    beta = igf.beta_obl(M1=flow.M, theta=abs(theta), g=flow.gamma, tol=1.0e-6)
++    P2_P1 = igf.p2_p1_obl(flow.M, beta, g=flow.gamma)
+     P2 = P2_P1 * flow.P
+     return P2
+ 
+@@ -43,11 +40,9 @@ def run_main():
+     width = 0.02
+     parameters = [theta, length, width]
+ 
+-    beta = OPM.oblique_beta(
+-        freestream.M, abs(theta), gamma=freestream.gamma, tolerance=1.0e-6
+-    )
+-    M_ramp = OPM.oblique_M2(freestream.M, beta, theta, gamma=freestream.gamma)
+-    T2_T1 = OPM.oblique_T2_T1(freestream.M, beta, gamma=freestream.gamma)
++    beta = igf.beta_obl(freestream.M, abs(theta), g=freestream.gamma, tol=1.0e-6)
++    M_ramp = igf.M2_obl(freestream.M, beta, theta, g=freestream.gamma)
++    T2_T1 = igf.T2_T1_obl(freestream.M, beta, g=freestream.gamma)
+ 
+     P_ramp = calculate_pressures(flow=freestream, theta=theta)
+ 

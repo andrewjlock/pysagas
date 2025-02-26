@@ -1,28 +1,3 @@
-## v0.15.2 (2024-07-04)
-
-### Fix
-
-- merge conflict
-
-## v0.15.1 (2024-06-29)
-
-### Refactor
-
-- migrate Vector into hypervehicle
-
-## v0.15.0 (2024-06-29)
-
-### Feat
-
-- **examples**: added example of generating aerodeck and sensedeck from geometry
-
-### Fix
-
-- **SensitivityCalculator**: do not overwrite verbosity
-- **_read_c3d_loads**: fix tag handling
-- **Cart3DShapeOpt**: add extra checks for errors
-- **van_dyke_sensitivity**: added supersonic mach conditional
-
 ## v0.14.0 (2024-02-27)
 
 ### Feat
