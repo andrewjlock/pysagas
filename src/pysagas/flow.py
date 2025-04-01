@@ -169,7 +169,7 @@ class FlowStateVec:
     def __init__(self, cells, Mach, aoa):
 
         self.consts = {"gamma": 1.4, "R": 287, "M_fs": Mach, "aoa": aoa, "cells": cells}
-        self.data = np.full((15, cells.num), np.NaN)
+        self.data = np.full((15, cells.num), np.nan)
         self.index = {
             "p": 0,
             "M": 1,
@@ -216,11 +216,10 @@ class FlowStateVec:
         rot_mat = R.from_euler("Y", -self.aoa, degrees=1).as_matrix()
         f_fs = rot_mat @ f_fs
         f_proj = f_fs.reshape(3, 1) - np.dot(self.cells.n.T, f_fs) * self.cells.n
-        # We find instances where the surfaces are normal to the flow and set the 
+        # We find instances where the surfaces are normal to the flow and set the
         # flow direction as free strepes
         singulars = np.where(np.linalg.norm(f_proj, axis=0)==0)[0]
         f_proj[:, singulars] = np.repeat(f_fs.reshape(3,-1), len(singulars), axis=1)
         f_proj = f_proj / np.linalg.norm(f_proj, axis=0)
         self.set_attr("dir", f_proj)
         self.set_attr("vec", self.dir * self.v_mag)
-

@@ -14,7 +14,7 @@ class CellArray:
 
         self.num = points.shape[0]
         self.data = np.full(
-            (25, self.num), np.NaN
+            (25, self.num), np.nan
         )  # Data except for parameter sensivities
         self.index = {
             "p0": [0, 1, 2],
