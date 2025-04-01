@@ -184,3 +184,15 @@ class CellArray:
         p.add_mesh(self.mesh, show_edges=True, scalars=scalars)
         p.show_axes()
         p.show()
+
+    def add_flowstatevec_to_mesh(self, flowstatevec):
+        """Adds flow states to mesh for plotting."""
+        for key, index in flowstatevec.index.items():
+            if isinstance(index, int):
+                # add scalar data
+                self.mesh.cell_data[key] = flowstatevec.data[index, :]
+            elif isinstance(index, list):
+                # add vector data
+                self.mesh.cell_data.set_vectors(flowstatevec.data[index, :].T, key)
+            else:
+                pass
