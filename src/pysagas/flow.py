@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
+from hypervehicle.utilities import PatchTag
+# from examples.wedge.sensitivity import freestream
 
 
 class GasState:
@@ -223,3 +225,26 @@ class FlowStateVec:
         f_proj = f_proj / np.linalg.norm(f_proj, axis=0)
         self.set_attr("dir", f_proj)
         self.set_attr("vec", self.dir * self.v_mag)
+
+
+class InFlowStateVec:
+    def __init__(self, cells, freestream, eng_outflow=None):
+
+        if any(cells.tag==PatchTag.NOZZLE) and eng_outflow is None:
+            raise Exception("eng_outflow cannot be None")
+
+        self.cells = cells
+
+        ind_nozzle = self.cells.tag == PatchTag.NOZZLE.value
+        self.P = np.where(ind_nozzle, eng_outflow.P, freestream.P)
+        self.M = np.where(ind_nozzle, eng_outflow.M, freestream.M)
+        self.T = np.where(ind_nozzle, eng_outflow.T, freestream.T)
+        self.rho = np.where(ind_nozzle, eng_outflow.rho, freestream.rho)
+        self.a = np.where(ind_nozzle, eng_outflow.a, freestream.a)
+        self.v = np.where(ind_nozzle, eng_outflow.v, freestream.v)
+        self.q = np.where(ind_nozzle, eng_outflow.q, freestream.q)
+        self.direction = np.where(ind_nozzle[:,None], eng_outflow.direction, freestream.direction).T
+        self.vec = np.where(ind_nozzle[:,None], eng_outflow.vec, freestream.vec).T
+        self.aoa = np.where(ind_nozzle, eng_outflow.aoa, freestream.aoa)
+        self.gamma = np.where(ind_nozzle, eng_outflow.gamma, freestream.gamma)
+        self.R = np.where(ind_nozzle, eng_outflow.R, freestream.R)
