@@ -120,6 +120,9 @@ class CellArray:
         self.height = max_h
         self.dheight_dp = dhdp
 
+        # Add flow tags
+        self.tag = mesh.cell_data['tag']
+
     def calc_dndv(self, p0, p1, p2):
         # Use quotient rule to differentiate (a x b)/ ||a x b|| where a = p2-p0 and b=p1-p0
         # h' = (f'g - fg')/g^2

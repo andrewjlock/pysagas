@@ -1,5 +1,6 @@
 import numpy as np
-from pysagas.flow import FlowStateVec
+from typing import Optional
+from pysagas.flow import FlowStateVec, FlowState, InFlowStateVec
 
 
 class OPMVec:
@@ -26,6 +27,7 @@ class OPMVec:
         self,
         cells,
         freestream=None,
+        eng_outflow: Optional[FlowState] = None,
         cog=np.array([0, 0, 0]),
         A_ref: float = 1,
         c_ref: float = 1,
@@ -33,18 +35,20 @@ class OPMVec:
 
         flow = freestream
 
+        inflow = InFlowStateVec(cells, freestream, eng_outflow)
         M2 = np.full(cells.num, float(flow.M))
         p2 = np.full(cells.num, 0.0)
         T2 = np.full(cells.num, float(flow.T))
         method = np.full(cells.num, -1)
 
         theta = np.pi / 2 - np.arccos(
-            np.dot(-flow.direction, cells.n)
-            / (np.linalg.norm(cells.n, axis=0) * np.linalg.norm(flow.direction))
+            np.sum(-inflow.direction * cells.n, axis=0)
+            / (np.linalg.norm(cells.n, axis=0) * np.linalg.norm(inflow.direction, axis=0))
         )
+
         r = cells.c - cog.reshape(3, 1)
-        beta_max = OPMVec.beta_max(M=flow.M, gamma=flow.gamma)
-        theta_max = OPMVec.theta_from_beta(M1=flow.M, beta=beta_max, gamma=flow.gamma)
+        beta_max = OPMVec.beta_max(M=inflow.M, gamma=inflow.gamma)
+        theta_max = OPMVec.theta_from_beta(M1=inflow.M, beta=beta_max, gamma=inflow.gamma)
 
         ll_idx = np.where(theta < np.deg2rad(self.PM_ANGLE_THRESHOLD))
         l_idx = np.where((np.deg2rad(self.PM_ANGLE_THRESHOLD) < theta) & (theta < 0))
@@ -53,17 +57,17 @@ class OPMVec:
         hh_idx = np.where(theta > theta_max)
 
         M2[l_idx], p2[l_idx], T2[l_idx] = self._solve_pm(
-            abs(theta[l_idx]), flow.M, flow.P, flow.T, flow.gamma
+            abs(theta[l_idx]), inflow.M[l_idx], inflow.P[l_idx], inflow.T[l_idx], inflow.gamma[l_idx]
         )
-        M2[m_idx], p2[m_idx], T2[m_idx] = np.full(
-            (len(m_idx), 3), (flow.M, flow.P, flow.T)
-        ).T
+
+        M2[m_idx], p2[m_idx], T2[m_idx] = inflow.M[m_idx], inflow.P[m_idx], inflow.T[m_idx]
+
         M2[h_idx], p2[h_idx], T2[h_idx] = self._solve_oblique(
-            abs(theta[h_idx]), flow.M, flow.P, flow.T, flow.gamma
+            abs(theta[h_idx]), inflow.M[h_idx], inflow.P[h_idx], inflow.T[h_idx], inflow.gamma[h_idx]
         )
-        M2[hh_idx], p2[hh_idx], T2[hh_idx] = np.full(
-            (len(hh_idx), 3), self._solve_normal(flow.M, flow.P, flow.T, flow.gamma)
-        ).T
+
+        M2[hh_idx], p2[hh_idx], T2[hh_idx] = self._solve_normal(inflow.M[hh_idx], inflow.P[hh_idx], inflow.T[hh_idx], inflow.gamma[hh_idx])
+
 
         method[ll_idx] = -1
         method[l_idx] = 1
@@ -137,7 +141,7 @@ class OPMVec:
         v_M1 = OPMVec.pm(M=M1, gamma=gamma)
         v_M2 = theta + v_M1
         if len(v_M2) > 0:
-            M2 = OPMVec.inv_pm(v_M2)
+            M2 = OPMVec.inv_pm(angle=v_M2, gamma=gamma)
         else:
             M2 = M1
 
@@ -288,7 +292,7 @@ class OPMVec:
         sign_beta = np.sign(theta)
         theta = abs(theta)
         b1 = np.arcsin(1.0 / M1) * 1
-        b2 = OPMVec.beta_max(M1)
+        b2 = OPMVec.beta_max(M=M1, gamma=gamma)
         # b2 = np.arcsin(1.0 / M1) * 3
 
         # Check f1
