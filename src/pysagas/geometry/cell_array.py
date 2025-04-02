@@ -196,3 +196,7 @@ class CellArray:
                 self.mesh.cell_data.set_vectors(flowstatevec.data[index, :].T, key)
             else:
                 pass
+
+    def clear_mesh_data(self):
+        """clears data attached to mesh"""
+        self.mesh.clear_data()
