@@ -2,6 +2,8 @@ import numpy as np
 from typing import Optional
 from pysagas.flow import FlowStateVec, FlowState, InFlowStateVec
 
+from utilities import PatchTag
+
 
 class OPMVec:
     """Oblique shock thoery and Prandtl-Meyer expansion theory flow solver using
@@ -22,6 +24,7 @@ class OPMVec:
     """
 
     PM_ANGLE_THRESHOLD = -20  # degrees
+    EPS = 1e-15
 
     def solve(
         self,
@@ -45,35 +48,40 @@ class OPMVec:
             np.sum(-inflow.direction * cells.n, axis=0)
             / (np.linalg.norm(cells.n, axis=0) * np.linalg.norm(inflow.direction, axis=0))
         )
+        theta = np.where(abs(theta) < self.EPS, 0.0, theta)
 
         r = cells.c - cog.reshape(3, 1)
         beta_max = OPMVec.beta_max(M=inflow.M, gamma=inflow.gamma)
         theta_max = OPMVec.theta_from_beta(M1=inflow.M, beta=beta_max, gamma=inflow.gamma)
 
-        ll_idx = np.where(theta < np.deg2rad(self.PM_ANGLE_THRESHOLD))
-        l_idx = np.where((np.deg2rad(self.PM_ANGLE_THRESHOLD) < theta) & (theta < 0))
-        m_idx = np.where(theta == 0)
-        h_idx = np.where((theta_max > theta) & (theta > 0))
-        hh_idx = np.where(theta > theta_max)
+        # INLET and OUTLET cells aerodynamics are not computed
+        dont_calc = (cells.tag == PatchTag.INLET.value) | (cells.tag == PatchTag.OUTLET.value)
 
-        M2[l_idx], p2[l_idx], T2[l_idx] = self._solve_pm(
-            abs(theta[l_idx]), inflow.M[l_idx], inflow.P[l_idx], inflow.T[l_idx], inflow.gamma[l_idx]
-        )
+        bad_idx = np.where(theta < np.deg2rad(self.PM_ANGLE_THRESHOLD)) # "bad" cells - exceed max value for P-M turning angle
+        pm_idx = np.where((np.deg2rad(self.PM_ANGLE_THRESHOLD) < theta) & (theta < 0) & (~dont_calc)) # P-M solver
+        parallel_idx = np.where((theta == 0) & (~dont_calc)) # Cells parallel to the incoming flow - no aerodynamic forces
+        oblique_idx = np.where((theta_max > theta) & (theta > 0) & (~dont_calc)) # Oblique shock
+        normal_idx = np.where((theta > theta_max) & (~dont_calc)) # Normal Shock
 
-        M2[m_idx], p2[m_idx], T2[m_idx] = inflow.M[m_idx], inflow.P[m_idx], inflow.T[m_idx]
+        M2[pm_idx], p2[pm_idx], T2[pm_idx] = self._solve_pm(
+            abs(theta[pm_idx]), inflow.M[pm_idx], inflow.P[pm_idx], inflow.T[pm_idx], inflow.gamma[pm_idx])
 
-        M2[h_idx], p2[h_idx], T2[h_idx] = self._solve_oblique(
-            abs(theta[h_idx]), inflow.M[h_idx], inflow.P[h_idx], inflow.T[h_idx], inflow.gamma[h_idx]
-        )
+        M2[parallel_idx], p2[parallel_idx], T2[parallel_idx] = (inflow.M[parallel_idx], inflow.P[parallel_idx],
+                                                                inflow.T[parallel_idx])
 
-        M2[hh_idx], p2[hh_idx], T2[hh_idx] = self._solve_normal(inflow.M[hh_idx], inflow.P[hh_idx], inflow.T[hh_idx], inflow.gamma[hh_idx])
+        M2[oblique_idx], p2[oblique_idx], T2[oblique_idx] = self._solve_oblique(
+            abs(theta[oblique_idx]), inflow.M[oblique_idx], inflow.P[oblique_idx], inflow.T[oblique_idx],
+            inflow.gamma[oblique_idx])
+
+        M2[normal_idx], p2[normal_idx], T2[normal_idx] = self._solve_normal(
+            inflow.M[normal_idx], inflow.P[normal_idx], inflow.T[normal_idx], inflow.gamma[normal_idx])
 
 
-        method[ll_idx] = -1
-        method[l_idx] = 1
-        method[m_idx] = 0
-        method[h_idx] = 3
-        method[hh_idx] = 2
+        method[bad_idx] = -1
+        method[pm_idx] = 1
+        method[parallel_idx] = 0
+        method[oblique_idx] = 3
+        method[normal_idx] = 2
 
         flow_state = FlowStateVec(cells, flow.M, flow.aoa)
         flow_state.set_attr("p", p2)
@@ -88,7 +96,7 @@ class OPMVec:
         C_force = force / (freestream.q * A_ref)
         C_moment = moment / (freestream.q * A_ref * c_ref)
 
-        bad = len(ll_idx)
+        bad = len(bad_idx)
         if bad / cells.num > 0.25:
             print(
                 f"WARNING: {100*bad/cells.num:.2f}% of cells were not "
