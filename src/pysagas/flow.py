@@ -233,6 +233,9 @@ class InFlowStateVec:
         if any(cells.tag==PatchTag.NOZZLE) and eng_outflow is None:
             raise Exception("eng_outflow cannot be None")
 
+        if eng_outflow is None:
+            eng_outflow = freestream
+
         self.cells = cells
 
         ind_nozzle = self.cells.tag == PatchTag.NOZZLE.value
