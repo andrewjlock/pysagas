@@ -57,7 +57,7 @@ class OPMVec:
         # INLET and OUTLET cells aerodynamics are not computed
         dont_calc = (cells.tag == PatchTag.INLET.value) | (cells.tag == PatchTag.OUTLET.value)
 
-        bad_idx = np.where(theta < np.deg2rad(self.PM_ANGLE_THRESHOLD)) # "bad" cells - exceed max value for P-M turning angle
+        bad_idx = np.where((theta < np.deg2rad(self.PM_ANGLE_THRESHOLD)) & (~dont_calc)) # "bad" cells - exceed max value for P-M turning angle
         pm_idx = np.where((np.deg2rad(self.PM_ANGLE_THRESHOLD) < theta) & (theta < 0) & (~dont_calc)) # P-M solver
         parallel_idx = np.where((theta == 0) & (~dont_calc)) # Cells parallel to the incoming flow - no aerodynamic forces
         oblique_idx = np.where((theta_max > theta) & (theta > 0) & (~dont_calc)) # Oblique shock
@@ -108,7 +108,7 @@ class OPMVec:
             "CM": C_moment,
         }
 
-        return result, flow_state
+        return result, flow_state, force
 
     @staticmethod
     def pm(M: float, gamma: float = 1.4):
