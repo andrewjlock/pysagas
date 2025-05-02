@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Optional
+from typing import Optional, Union
 from pysagas.flow import FlowStateVec, FlowState, InFlowStateVec
 
 from utilities import PatchTag
@@ -29,16 +29,19 @@ class OPMVec:
     def solve(
         self,
         cells,
-        freestream=None,
-        eng_outflow: Optional[FlowState] = None,
+        freestream: Union[FlowState, InFlowStateVec]=None,
         cog=np.array([0, 0, 0]),
         A_ref: float = 1,
         c_ref: float = 1,
     ):
 
-        flow = freestream
+        if isinstance(freestream, FlowState):
+            flow = freestream
+            inflow = freestream
+        elif isinstance(freestream, InFlowStateVec):
+            flow = freestream.freestream
+            inflow = freestream
 
-        inflow = InFlowStateVec(cells, freestream, eng_outflow)
         M2 = np.full(cells.num, float(flow.M))
         p2 = np.full(cells.num, 0.0)
         T2 = np.full(cells.num, float(flow.T))
@@ -93,8 +96,8 @@ class OPMVec:
         F = -cells.n * p2 * cells.A
         force = np.sum(F, axis=1)
         moment = np.sum(np.cross(r.T, F.T).T, axis=1)
-        C_force = force / (freestream.q * A_ref)
-        C_moment = moment / (freestream.q * A_ref * c_ref)
+        C_force = force / (flow.q * A_ref)
+        C_moment = moment / (flow.q * A_ref * c_ref)
 
         bad = len(bad_idx)
         if bad / cells.num > 0.25:
@@ -104,11 +107,14 @@ class OPMVec:
             )
 
         result = {
+            "F": F,
+            "M": moment,
             "CF": C_force,
             "CM": C_moment,
+            "freestream": flow,
         }
 
-        return result, flow_state, force
+        return result, flow_state
 
     @staticmethod
     def pm(M: float, gamma: float = 1.4):

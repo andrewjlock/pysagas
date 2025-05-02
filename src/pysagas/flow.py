@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from hypervehicle.utilities import PatchTag
+from hypervehicle.geometry import Vector3
 # from examples.wedge.sensitivity import freestream
 
 
@@ -85,6 +86,10 @@ class GasState:
     def gamma(self):
         return self._gamma
 
+    @property
+    def Cp(self):
+        return self.R*self._gamma / (self._gamma-1)
+
 
 class FlowState(GasState):
     """An ideal gas state defined by Mach number, pressure and
@@ -126,7 +131,10 @@ class FlowState(GasState):
         super().__init__(mach, pressure, temperature, gamma)
         if direction:
             # Use direction provided
-            self.direction = direction.unit
+            if isinstance(direction, Vector3):
+                self.direction = np.array([direction.unit.x, direction.unit.y, direction.unit.z])
+            else:
+                self.direction = direction.unit
         else:
             # Use AoA to calculate direction
             rot_mat = R.from_euler("ZYX", [0, -aoa, 0], degrees=1).as_matrix()
@@ -181,7 +189,7 @@ class FlowStateVec:
             "a": 5,
             "v_mag": 6,
             "q": 7,
-            "dir": [8, 9, 10],  # Flow vector direction
+            "direction": [8, 9, 10],  # Flow vector direction
             "vec": [11, 12, 13],  # Flow vector
         }
         self.p_sens = []
@@ -223,8 +231,8 @@ class FlowStateVec:
         singulars = np.where(np.linalg.norm(f_proj, axis=0)==0)[0]
         f_proj[:, singulars] = np.repeat(f_fs.reshape(3,-1), len(singulars), axis=1)
         f_proj = f_proj / np.linalg.norm(f_proj, axis=0)
-        self.set_attr("dir", f_proj)
-        self.set_attr("vec", self.dir * self.v_mag)
+        self.set_attr("direction", f_proj)
+        self.set_attr("vec", self.direction * self.v_mag)
 
 
 class InFlowStateVec:
@@ -236,6 +244,8 @@ class InFlowStateVec:
         if eng_outflow is None:
             eng_outflow = freestream
 
+        self.freestream = freestream
+        self.eng_outflow = eng_outflow
         self.cells = cells
 
         ind_nozzle = self.cells.tag == PatchTag.NOZZLE.value
@@ -251,3 +261,39 @@ class InFlowStateVec:
         self.aoa = np.where(ind_nozzle, eng_outflow.aoa, freestream.aoa)
         self.gamma = np.where(ind_nozzle, eng_outflow.gamma, freestream.gamma)
         self.R = np.where(ind_nozzle, eng_outflow.R, freestream.R)
+
+
+
+class FlowResults:
+    """A class containing the aerodynamic force and moment
+    information with respect to design parameters.
+
+    Attributes
+    ----------
+    freestream : FlowState
+        The freestream flow state.
+
+    net_force : pd.DataFrame
+        The net force in cartesian coordinate frame (x,y,z).
+
+    m_sense : pd.DataFrame
+        The net moment in cartesian coordinate frame (x,y,z).
+    """
+
+    def __init__(
+        self, freestream: FlowState, net_force: Vector3, net_moment: Vector3,
+    ) -> None:
+        self.freestream = freestream
+        self.net_force = net_force
+        self.net_moment = net_moment
+
+        # # Calculate angle of attack
+        # self.aoa = np.rad2deg(
+        #     np.arctan(freestream.direction.y / freestream.direction.x)
+        # )
+
+    def __str__(self) -> str:
+        return f"Net force = {self.net_force} N"
+
+    def __repr__(self) -> str:
+        return self.__str__()
