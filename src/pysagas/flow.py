@@ -167,7 +167,8 @@ class FlowState(GasState):
 
     @property
     def Vector(self):
-        return self.direction * self.v
+        # return self.direction * self.v
+        return np.array([self.direction[0] * self.v, self.direction[1] * self.v, self.direction[2] * self.v])
 
     @property
     def aoa(self):

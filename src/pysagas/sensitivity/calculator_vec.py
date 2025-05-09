@@ -8,6 +8,7 @@ def sensitivity_calculator_vec(
     cells,
     freestream: Union[FlowState, InFlowStateVec],
     flow_state,
+    inflow_sens= None,
     cog=np.array([0, 0, 0]),
     cog_sens=None,
     A_ref: float = 1,
@@ -40,7 +41,7 @@ def sensitivity_calculator_vec(
         # dPdp = sensitivity_function(cells, flow_state, p)
         dPdp_c[calc_idx] = sensitivity_function(cells, flow_state, p, calc_idx)
         if any(eng_idx):
-            dPdp_e[eng_idx] = freestream_isentropic_sensitivity(cells=cells, flowstate=flow_state, p_i=p, inflow=inflow, inflow_sens=0.0, eng_idx=eng_idx)
+            dPdp_e[eng_idx] = freestream_isentropic_sensitivity(cells=cells, flowstate=flow_state, p_i=p, inflow=inflow, inflow_sens=inflow_sens, eng_idx=eng_idx)
         dPdp = dPdp_c + dPdp_e
 
         dF = (

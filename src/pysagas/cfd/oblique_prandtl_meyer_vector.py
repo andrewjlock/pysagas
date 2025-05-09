@@ -66,18 +66,21 @@ class OPMVec:
         oblique_idx = np.where((theta_max > theta) & (theta > 0) & (~dont_calc)) # Oblique shock
         normal_idx = np.where((theta > theta_max) & (~dont_calc)) # Normal Shock
 
-        M2[pm_idx], p2[pm_idx], T2[pm_idx] = self._solve_pm(
-            abs(theta[pm_idx]), inflow.M[pm_idx], inflow.P[pm_idx], inflow.T[pm_idx], inflow.gamma[pm_idx])
+        if pm_idx[0].size > 0:
+            M2[pm_idx], p2[pm_idx], T2[pm_idx] = self._solve_pm(
+                abs(theta[pm_idx]), inflow.M[pm_idx], inflow.P[pm_idx], inflow.T[pm_idx], inflow.gamma[pm_idx])
 
-        M2[parallel_idx], p2[parallel_idx], T2[parallel_idx] = (inflow.M[parallel_idx], inflow.P[parallel_idx],
-                                                                inflow.T[parallel_idx])
+        if parallel_idx[0].size > 0:
+            M2[parallel_idx], p2[parallel_idx], T2[parallel_idx] = (inflow.M[parallel_idx], inflow.P[parallel_idx],
+                                                                    inflow.T[parallel_idx])
+        if oblique_idx[0].size > 0:
+            M2[oblique_idx], p2[oblique_idx], T2[oblique_idx] = self._solve_oblique(
+                abs(theta[oblique_idx]), inflow.M[oblique_idx], inflow.P[oblique_idx], inflow.T[oblique_idx],
+                inflow.gamma[oblique_idx])
 
-        M2[oblique_idx], p2[oblique_idx], T2[oblique_idx] = self._solve_oblique(
-            abs(theta[oblique_idx]), inflow.M[oblique_idx], inflow.P[oblique_idx], inflow.T[oblique_idx],
-            inflow.gamma[oblique_idx])
-
-        M2[normal_idx], p2[normal_idx], T2[normal_idx] = self._solve_normal(
-            inflow.M[normal_idx], inflow.P[normal_idx], inflow.T[normal_idx], inflow.gamma[normal_idx])
+        if normal_idx[0].size > 0:
+            M2[normal_idx], p2[normal_idx], T2[normal_idx] = self._solve_normal(
+                inflow.M[normal_idx], inflow.P[normal_idx], inflow.T[normal_idx], inflow.gamma[normal_idx])
 
 
         method[bad_idx] = -1
@@ -107,7 +110,7 @@ class OPMVec:
             )
 
         result = {
-            "F": F,
+            "F": force,
             "M": moment,
             "CF": C_force,
             "CM": C_moment,
