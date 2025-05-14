@@ -2,7 +2,7 @@ import numpy as np
 from typing import Optional, Union
 from pysagas.flow import FlowStateVec, FlowState, InFlowStateVec
 
-from utilities import PatchTag
+from hypervehicle.utilities import PatchTag
 
 
 class OPMVec:

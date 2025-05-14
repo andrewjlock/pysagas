@@ -1,6 +1,8 @@
 import numpy as np
 import pyvista as pv
 
+from hypervehicle.utilities import PatchTag
+
 
 class CellArray:
     def __init__(self, points, dvdp, mesh):
@@ -121,7 +123,11 @@ class CellArray:
         self.dheight_dp = dhdp
 
         # Add flow tags
-        self.tag = mesh.cell_data['tag']
+        if 'tag' in mesh.cell_data.keys():
+            self.tag = mesh.cell_data['tag']
+        else:
+            self.tag = np.full(self.num, PatchTag.FREE_STREAM.value)
+
 
     def calc_dndv(self, p0, p1, p2):
         # Use quotient rule to differentiate (a x b)/ ||a x b|| where a = p2-p0 and b=p1-p0
