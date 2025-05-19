@@ -37,7 +37,7 @@ class OPMVec:
 
         if isinstance(freestream, FlowState):
             flow = freestream
-            inflow = freestream
+            inflow = InFlowStateVec(cells, freestream)
         elif isinstance(freestream, InFlowStateVec):
             flow = freestream.freestream
             inflow = freestream
@@ -47,8 +47,12 @@ class OPMVec:
         T2 = np.full(cells.num, float(flow.T))
         method = np.full(cells.num, -1)
 
-        theta = np.pi / 2 - np.arccos(
-            np.sum(-inflow.direction * cells.n, axis=0)
+        if inflow.direction.ndim == 1:
+            dot4theta = np.einsum('i,ij->j', -inflow.direction, cells.n)
+        else:
+            dot4theta = np.einsum('ij,ij->j', -inflow.direction, cells.n)
+
+        theta = np.pi / 2 - np.arccos(dot4theta
             / (np.linalg.norm(cells.n, axis=0) * np.linalg.norm(inflow.direction, axis=0))
         )
         theta = np.where(abs(theta) < self.EPS, 0.0, theta)
