@@ -67,10 +67,16 @@ def sensitivity_calculator_vec(
 
         flow_state.p_sens.append(dPdp)
 
-    dFdp = np.sum(sensitivities, axis=-1) / (flow.q * A_ref)
-    dMdp = np.sum(moment_sensitivities, axis=-1) / (flow.q * A_ref * c_ref)
+    #TODO - change names to DFdp (for force), and dCFdp for coefficent
+    dForcedp = np.sum(sensitivities, axis=-1)
+    dMomentdp = np.sum(moment_sensitivities, axis=-1)
+    dFdp = dForcedp / (flow.q * A_ref)
+    dMdp = dMomentdp / (flow.q * A_ref * c_ref)
+
     result = {
         "dFdp": dFdp,
         "dMdp": dMdp,
+        "dForcedp": dForcedp,
+        "dMomentdp": dMomentdp,
     }
     return result

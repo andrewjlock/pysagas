@@ -267,7 +267,7 @@ class InFlowStateVec:
 
 class FlowResults:
     """A class containing the aerodynamic force and moment
-    information with respect to design parameters.
+    information for a single flow condition.
 
     Attributes
     ----------
