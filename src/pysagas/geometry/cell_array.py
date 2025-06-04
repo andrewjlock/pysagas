@@ -166,6 +166,15 @@ class CellArray:
                 "Accessing CellArray value <" + name + "> that does not exist"
             )
 
+    def __deepcopy__(self, memo):
+        from copy import deepcopy
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            setattr(result, k, deepcopy(v, memo))
+        return result
+
     def set_attr(self, attr, val):
         if attr in self.index.keys():
             self.data[self.index[attr]] = val
