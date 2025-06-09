@@ -29,7 +29,7 @@ class OPMVec:
     def solve(
         self,
         cells,
-        freestream: Union[FlowState, InFlowStateVec]=None,
+        freestream: Union[FlowState, InFlowStateVec] = None,
         cog=np.array([0, 0, 0]),
         A_ref: float = 1,
         c_ref: float = 1,
@@ -48,44 +48,75 @@ class OPMVec:
         method = np.full(cells.num, -1)
 
         if inflow.direction.ndim == 1:
-            dot4theta = np.einsum('i,ij->j', -inflow.direction, cells.n)
+            dot4theta = np.einsum("i,ij->j", -inflow.direction, cells.n)
         else:
-            dot4theta = np.einsum('ij,ij->j', -inflow.direction, cells.n)
+            dot4theta = np.einsum("ij,ij->j", -inflow.direction, cells.n)
 
-        theta = np.pi / 2 - np.arccos(dot4theta
-            / (np.linalg.norm(cells.n, axis=0) * np.linalg.norm(inflow.direction, axis=0))
+        theta = np.pi / 2 - np.arccos(
+            dot4theta
+            / (
+                np.linalg.norm(cells.n, axis=0)
+                * np.linalg.norm(inflow.direction, axis=0)
+            )
         )
         theta = np.where(abs(theta) < self.EPS, 0.0, theta)
 
         r = cells.c - cog.reshape(3, 1)
         beta_max = OPMVec.beta_max(M=inflow.M, gamma=inflow.gamma)
-        theta_max = OPMVec.theta_from_beta(M1=inflow.M, beta=beta_max, gamma=inflow.gamma)
+        theta_max = OPMVec.theta_from_beta(
+            M1=inflow.M, beta=beta_max, gamma=inflow.gamma
+        )
 
         # INLET and OUTLET cells aerodynamics are not computed
-        dont_calc = (cells.tag == PatchTag.INLET.value) | (cells.tag == PatchTag.OUTLET.value)
+        dont_calc = (cells.tag == PatchTag.INLET.value) | (
+            cells.tag == PatchTag.OUTLET.value
+        )
 
-        bad_idx = np.where((theta < np.deg2rad(self.PM_ANGLE_THRESHOLD)) & (~dont_calc)) # "bad" cells - exceed max value for P-M turning angle
-        pm_idx = np.where((np.deg2rad(self.PM_ANGLE_THRESHOLD) < theta) & (theta < 0) & (~dont_calc)) # P-M solver
-        parallel_idx = np.where((theta == 0) & (~dont_calc)) # Cells parallel to the incoming flow - no aerodynamic forces
-        oblique_idx = np.where((theta_max > theta) & (theta > 0) & (~dont_calc)) # Oblique shock
-        normal_idx = np.where((theta > theta_max) & (~dont_calc)) # Normal Shock
+        bad_idx = np.where(
+            (theta < np.deg2rad(self.PM_ANGLE_THRESHOLD)) & (~dont_calc)
+        )  # "bad" cells - exceed max value for P-M turning angle
+        pm_idx = np.where(
+            (np.deg2rad(self.PM_ANGLE_THRESHOLD) < theta) & (theta < 0) & (~dont_calc)
+        )  # P-M solver
+        parallel_idx = np.where(
+            (theta == 0) & (~dont_calc)
+        )  # Cells parallel to the incoming flow - no aerodynamic forces
+        oblique_idx = np.where(
+            (theta_max > theta) & (theta > 0) & (~dont_calc)
+        )  # Oblique shock
+        normal_idx = np.where((theta > theta_max) & (~dont_calc))  # Normal Shock
 
         if pm_idx[0].size > 0:
             M2[pm_idx], p2[pm_idx], T2[pm_idx] = self._solve_pm(
-                abs(theta[pm_idx]), inflow.M[pm_idx], inflow.P[pm_idx], inflow.T[pm_idx], inflow.gamma[pm_idx])
+                abs(theta[pm_idx]),
+                inflow.M[pm_idx],
+                inflow.P[pm_idx],
+                inflow.T[pm_idx],
+                inflow.gamma[pm_idx],
+            )
 
         if parallel_idx[0].size > 0:
-            M2[parallel_idx], p2[parallel_idx], T2[parallel_idx] = (inflow.M[parallel_idx], inflow.P[parallel_idx],
-                                                                    inflow.T[parallel_idx])
+            M2[parallel_idx], p2[parallel_idx], T2[parallel_idx] = (
+                inflow.M[parallel_idx],
+                inflow.P[parallel_idx],
+                inflow.T[parallel_idx],
+            )
         if oblique_idx[0].size > 0:
             M2[oblique_idx], p2[oblique_idx], T2[oblique_idx] = self._solve_oblique(
-                abs(theta[oblique_idx]), inflow.M[oblique_idx], inflow.P[oblique_idx], inflow.T[oblique_idx],
-                inflow.gamma[oblique_idx])
+                abs(theta[oblique_idx]),
+                inflow.M[oblique_idx],
+                inflow.P[oblique_idx],
+                inflow.T[oblique_idx],
+                inflow.gamma[oblique_idx],
+            )
 
         if normal_idx[0].size > 0:
             M2[normal_idx], p2[normal_idx], T2[normal_idx] = self._solve_normal(
-                inflow.M[normal_idx], inflow.P[normal_idx], inflow.T[normal_idx], inflow.gamma[normal_idx])
-
+                inflow.M[normal_idx],
+                inflow.P[normal_idx],
+                inflow.T[normal_idx],
+                inflow.gamma[normal_idx],
+            )
 
         method[bad_idx] = -1
         method[pm_idx] = 1

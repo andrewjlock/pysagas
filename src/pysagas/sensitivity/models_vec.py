@@ -67,7 +67,9 @@ def van_dyke_sensitivity(
     ss_idx = np.where((flowstate.M > 1) & (calc_idx))  # Cells with supersonic flow
     dPdp = np.zeros(cells.num)
 
-    piston = piston_sensitivity(cells=cells, flowstate=flowstate, p_i=p_i, calc_idx=calc_idx)
+    piston = piston_sensitivity(
+        cells=cells, flowstate=flowstate, p_i=p_i, calc_idx=calc_idx
+    )
     dPdp[ss_idx] = (
         piston[ss_idx] * flowstate.M[ss_idx] / (flowstate.M[ss_idx] ** 2 - 1) ** 0.5
     )
@@ -88,14 +90,16 @@ def van_dyke_sensitivity(
 #     dPdp = dPdW * np.dot(dWdn, dndp)
 #     return dPdp
 
+
 def freestream_isentropic_sensitivity(
-        cells: CellArray,
-        flowstate: FlowStateVec,
-        p_i: int,
-        inflow: InFlowStateVec,
-        inflow_sens,
-        eng_idx,
-        **kwargs):
+    cells: CellArray,
+    flowstate: FlowStateVec,
+    p_i: int,
+    inflow: InFlowStateVec,
+    inflow_sens,
+    eng_idx,
+    **kwargs,
+):
     """Calculates the pressure-parameter sensitivity, including
     the sensitivity to the incoming flow state (for use on nozzle cells
     where the engine outflow changes due to parameter change)
@@ -130,28 +134,33 @@ def freestream_isentropic_sensitivity(
     P1 = inflow.P[eng_idx]
     P2 = flowstate.p[eng_idx]
 
-    beta1 = np.sqrt(M1 ** 2 - 1)
-    beta2 = np.sqrt(M2 ** 2 - 1)
-    fun1 = 1 + (gamma1 - 1) / 2 * M1 ** 2
-    fun2 = 1 + (gamma2 - 1) / 2 * M2 ** 2
+    beta1 = np.sqrt(M1**2 - 1)
+    beta2 = np.sqrt(M2**2 - 1)
+    fun1 = 1 + (gamma1 - 1) / 2 * M1**2
+    fun2 = 1 + (gamma2 - 1) / 2 * M2**2
 
     # Calculate sens to inflow Mach number
     dM2_dM1 = (M2 / M1) * (beta1 / beta2) * (fun2 / fun1)
     t1 = M1 * fun1 ** (1 / (gamma1 - 1)) * fun2 ** ((-gamma1) / (gamma1 - 1))
-    t2 = M2 * fun1 ** (gamma1 / (gamma1 - 1)) * fun2 ** ((1 - 2 * gamma1) / (gamma1 - 1)) * dM2_dM1
+    t2 = (
+        M2
+        * fun1 ** (gamma1 / (gamma1 - 1))
+        * fun2 ** ((1 - 2 * gamma1) / (gamma1 - 1))
+        * dM2_dM1
+    )
     dP2_dM1 = P1 * gamma1 * (t1 - t2)
 
     # Calculate sens to inflow pressure
     dP2_dP1 = (fun1 / fun2) ** (gamma2 / (gamma2 - 1))
 
     # Calculate sens to inflow aoa
-    dP2_daoa = M2 ** 2 / beta2 * gamma2 * P2
+    dP2_daoa = M2**2 / beta2 * gamma2 * P2
 
     # Calculate sens to inflow gamma
     gp1 = gamma1 + 1
     gm1 = gamma1 - 1
     fg = gp1 / gm1
-    fM = beta1 ** 2 / fg
+    fM = beta1**2 / fg
     num1 = np.sqrt(fg) * (beta1 / gp1) ** 2
     den1 = np.sqrt(fM) * (fM + 1)
     num2 = 1 / gm1 * np.arctan(np.sqrt(fM))
@@ -159,18 +168,20 @@ def freestream_isentropic_sensitivity(
     dnu_dg1 = num1 / den1 - num2 / den2
 
     q = (fun1 / fun2) ** (gamma1 / gm1)
-    r1 = gamma1 * (M1 ** 2 - (M2 ** 2 * fun1) / fun2)
+    r1 = gamma1 * (M1**2 - (M2**2 * fun1) / fun2)
     r2 = 2 * gm1 * fun1
-    s1 = 1 / gm1 - gamma1 / (gm1 ** 2)
+    s1 = 1 / gm1 - gamma1 / (gm1**2)
     s2 = np.log(fun1 / fun2)
     df_dg = q * (r1 / r2 + s1 * s2)
 
     dP2_dg1 = P1 * df_dg - dP2_daoa * dnu_dg1
 
     # sum contributions
-    dPdp = (dP2_dM1 * inflow_sens.loc['M'][p_i]
-            + dP2_dP1 * inflow_sens.loc['P'][p_i]
-            + dP2_daoa * inflow_sens.loc['flow_angle'][p_i]
-            + dP2_dg1 * inflow_sens.loc['gamma'][p_i])
+    dPdp = (
+        dP2_dM1 * inflow_sens.loc["M"][p_i]
+        + dP2_dP1 * inflow_sens.loc["P"][p_i]
+        + dP2_daoa * inflow_sens.loc["flow_angle"][p_i]
+        + dP2_dg1 * inflow_sens.loc["gamma"][p_i]
+    )
 
     return dPdp

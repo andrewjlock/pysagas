@@ -1,14 +1,18 @@
 import numpy as np
 from typing import Union
-from pysagas.sensitivity.models_vec import van_dyke_sensitivity, freestream_isentropic_sensitivity
+from pysagas.sensitivity.models_vec import (
+    van_dyke_sensitivity,
+    freestream_isentropic_sensitivity,
+)
 from pysagas.flow import FlowStateVec, FlowState, InFlowStateVec
 from utilities import PatchTag
+
 
 def sensitivity_calculator_vec(
     cells,
     freestream: Union[FlowState, InFlowStateVec],
     flow_state,
-    inflow_sens= None,
+    inflow_sens=None,
     cog=np.array([0, 0, 0]),
     cog_sens=None,
     A_ref: float = 1,
@@ -32,16 +36,23 @@ def sensitivity_calculator_vec(
     dPdp_e = np.full(cells.num, 0.0)
 
     # # INLET and OUTLET cells aerodynamics are not computed
-    calc_idx = (cells.tag != PatchTag.INLET.value) | (cells.tag != PatchTag.OUTLET.value)
-    eng_idx = (cells.tag == PatchTag.NOZZLE.value)
-
-
+    calc_idx = (cells.tag != PatchTag.INLET.value) | (
+        cells.tag != PatchTag.OUTLET.value
+    )
+    eng_idx = cells.tag == PatchTag.NOZZLE.value
 
     for p in range(cells.dAdp.shape[0]):
         # dPdp = sensitivity_function(cells, flow_state, p)
         dPdp_c[calc_idx] = sensitivity_function(cells, flow_state, p, calc_idx)
         if any(eng_idx):
-            dPdp_e[eng_idx] = freestream_isentropic_sensitivity(cells=cells, flowstate=flow_state, p_i=p, inflow=inflow, inflow_sens=inflow_sens, eng_idx=eng_idx)
+            dPdp_e[eng_idx] = freestream_isentropic_sensitivity(
+                cells=cells,
+                flowstate=flow_state,
+                p_i=p,
+                inflow=inflow,
+                inflow_sens=inflow_sens,
+                eng_idx=eng_idx,
+            )
         dPdp = dPdp_c + dPdp_e
 
         dF = (
@@ -67,7 +78,7 @@ def sensitivity_calculator_vec(
 
         flow_state.p_sens.append(dPdp)
 
-    #TODO - change names to DFdp (for force), and dCFdp for coefficent
+    # TODO - change names to DFdp (for force), and dCFdp for coefficient
     dForcedp = np.sum(sensitivities, axis=-1)
     dMomentdp = np.sum(moment_sensitivities, axis=-1)
     dFdp = dForcedp / (flow.q * A_ref)

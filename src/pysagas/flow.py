@@ -2,6 +2,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 from hypervehicle.utilities import PatchTag
 from hypervehicle.geometry import Vector3
+
 # from examples.wedge.sensitivity import freestream
 
 
@@ -88,7 +89,7 @@ class GasState:
 
     @property
     def Cp(self):
-        return self.R*self._gamma / (self._gamma-1)
+        return self.R * self._gamma / (self._gamma - 1)
 
 
 class FlowState(GasState):
@@ -132,7 +133,9 @@ class FlowState(GasState):
         if direction:
             # Use direction provided
             if isinstance(direction, Vector3):
-                self.direction = np.array([direction.unit.x, direction.unit.y, direction.unit.z])
+                self.direction = np.array(
+                    [direction.unit.x, direction.unit.y, direction.unit.z]
+                )
             else:
                 self.direction = direction.unit
         else:
@@ -168,7 +171,13 @@ class FlowState(GasState):
     @property
     def Vector(self):
         # return self.direction * self.v
-        return np.array([self.direction[0] * self.v, self.direction[1] * self.v, self.direction[2] * self.v])
+        return np.array(
+            [
+                self.direction[0] * self.v,
+                self.direction[1] * self.v,
+                self.direction[2] * self.v,
+            ]
+        )
 
     @property
     def aoa(self):
@@ -207,6 +216,7 @@ class FlowStateVec:
 
     def __deepcopy__(self, memo):
         from copy import deepcopy
+
         cls = self.__class__
         result = cls.__new__(cls)
         memo[id(self)] = result
@@ -238,8 +248,8 @@ class FlowStateVec:
         f_proj = f_fs.reshape(3, 1) - np.dot(self.cells.n.T, f_fs) * self.cells.n
         # We find instances where the surfaces are normal to the flow and set the
         # flow direction as free strepes
-        singulars = np.where(np.linalg.norm(f_proj, axis=0)==0)[0]
-        f_proj[:, singulars] = np.repeat(f_fs.reshape(3,-1), len(singulars), axis=1)
+        singulars = np.where(np.linalg.norm(f_proj, axis=0) == 0)[0]
+        f_proj[:, singulars] = np.repeat(f_fs.reshape(3, -1), len(singulars), axis=1)
         f_proj = f_proj / np.linalg.norm(f_proj, axis=0)
         self.set_attr("direction", f_proj)
         self.set_attr("vec", self.direction * self.v_mag)
@@ -248,7 +258,7 @@ class FlowStateVec:
 class InFlowStateVec:
     def __init__(self, cells, freestream, eng_outflow=None):
 
-        if any(cells.tag==PatchTag.NOZZLE) and eng_outflow is None:
+        if any(cells.tag == PatchTag.NOZZLE) and eng_outflow is None:
             raise Exception("eng_outflow cannot be None")
 
         if eng_outflow is None:
@@ -266,12 +276,13 @@ class InFlowStateVec:
         self.a = np.where(ind_nozzle, eng_outflow.a, freestream.a)
         self.v = np.where(ind_nozzle, eng_outflow.v, freestream.v)
         self.q = np.where(ind_nozzle, eng_outflow.q, freestream.q)
-        self.direction = np.where(ind_nozzle[:,None], eng_outflow.direction, freestream.direction).T
-        self.vec = np.where(ind_nozzle[:,None], eng_outflow.vec, freestream.vec).T
+        self.direction = np.where(
+            ind_nozzle[:, None], eng_outflow.direction, freestream.direction
+        ).T
+        self.vec = np.where(ind_nozzle[:, None], eng_outflow.vec, freestream.vec).T
         self.aoa = np.where(ind_nozzle, eng_outflow.aoa, freestream.aoa)
         self.gamma = np.where(ind_nozzle, eng_outflow.gamma, freestream.gamma)
         self.R = np.where(ind_nozzle, eng_outflow.R, freestream.R)
-
 
 
 class FlowResults:
@@ -291,7 +302,10 @@ class FlowResults:
     """
 
     def __init__(
-        self, freestream: FlowState, net_force: Vector3, net_moment: Vector3,
+        self,
+        freestream: FlowState,
+        net_force: Vector3,
+        net_moment: Vector3,
     ) -> None:
         self.freestream = freestream
         self.net_force = net_force

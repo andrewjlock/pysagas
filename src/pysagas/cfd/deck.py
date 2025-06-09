@@ -31,8 +31,6 @@ class AeroDeck:
         self.df.to_csv("aerodeck.csv")
 
 
-
-
 class SensDeck:
     def __init__(self, inputs, parameters, add_coeffs=True, add_forces=False):
         self.inputs = inputs
@@ -63,7 +61,9 @@ class SensDeck:
             if self.add_coeffs:
                 row += list(result_dict["dFdp"][i]) + list(result_dict["dMdp"][i])
             if self.add_forces:
-                row += list(result_dict["dForcedp"][i]) + list(result_dict["dMomentdp"][i])
+                row += list(result_dict["dForcedp"][i]) + list(
+                    result_dict["dMomentdp"][i]
+                )
             self.dfs[i].loc[len(self.dfs[i].index)] = row
 
     def to_csv(self):
