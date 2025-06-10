@@ -205,14 +205,21 @@ class FlowStateVec:
         self.p_sens = []
 
     def __getattr__(self, name):
-        if name in self.index.keys():
+        # Prevent Python internals from breaking things
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(f"{name} not found")
+
+        index = self.__dict__.get("index")
+        if index is not None and name in index:
             return self.data[self.index[name]]
-        elif name in self.consts.keys():
-            return self.consts[name]
-        else:
-            raise ValueError(
-                "Accessing FlowStateVec value <" + name + "> that does not exist"
-            )
+
+        consts = self.__dict__.get("consts")
+        if consts is not None and name in consts:
+            return consts[name]
+
+        raise ValueError(
+            "Accessing FlowStateVec value <" + name + "> that does not exist"
+        )
 
     def __deepcopy__(self, memo):
         from copy import deepcopy

@@ -156,14 +156,19 @@ class CellArray:
         return dadv
 
     def __getattr__(self, name):
-        if name in self.index.keys():
+        # Never handle special Python dunder methods
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(f"{name} not found")
+
+        index = self.__dict__.get("index")
+        if index is not None and name in index:
             return self.data[self.index[name]]
-        elif name in self.sens.keys():
+
+        sens = self.__dict__.get("sens")
+        if sens is not None and name in sens:
             return self.sens[name]
-        else:
-            raise ValueError(
-                "Accessing CellArray value <" + name + "> that does not exist"
-            )
+
+        raise ValueError("Accessing CellArray value <" + name + "> that does not exist")
 
     def __deepcopy__(self, memo):
         from copy import deepcopy

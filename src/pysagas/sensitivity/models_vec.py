@@ -1,6 +1,5 @@
 import numpy as np
 
-from flow import InFlowStateVec
 from pysagas.geometry import CellArray
 from pysagas.flow import FlowStateVec, FlowState, InFlowStateVec
 

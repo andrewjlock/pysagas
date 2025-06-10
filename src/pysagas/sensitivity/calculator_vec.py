@@ -5,7 +5,7 @@ from pysagas.sensitivity.models_vec import (
     freestream_isentropic_sensitivity,
 )
 from pysagas.flow import FlowStateVec, FlowState, InFlowStateVec
-from utilities import PatchTag
+from hypervehicle.utilities import PatchTag
 
 
 def sensitivity_calculator_vec(
