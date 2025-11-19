@@ -179,7 +179,7 @@ class OPMVec:
             x_0 = np.where(np.sign(f_mid) == np.sign(f_0), x_mid, x_0)
             x_1 = np.where(np.sign(f_mid) == np.sign(f_1), x_mid, x_1)
             error_max = np.amax(np.abs(x_1 - x_0))
-            if error_max < 1e-6:
+            if error_max < 1e-12:
                 break
         return x_1
         # pm = bisect(func, 1.0, 42.0)
@@ -369,7 +369,7 @@ class OPMVec:
             x_0 = np.where(np.sign(f_mid) == np.sign(f_0), x_mid, x_0)
             x_1 = np.where(np.sign(f_mid) == np.sign(f_1), x_mid, x_1)
             error_max = np.amax(np.abs(x_1 - x_0))
-            if error_max < 1e-6:
+            if error_max < 1e-12:
                 break
         beta = sign_beta * x_1
 
