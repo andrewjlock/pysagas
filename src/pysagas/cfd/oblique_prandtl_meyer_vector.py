@@ -152,7 +152,14 @@ class OPMVec:
             "freestream": flow,
         }
 
-        return result, flow_state
+        Comp_force = {
+            "Nozzle": np.sum(F[:, cells.tag == PatchTag.NOZZLE.value], axis=1),
+            "Top": np.sum(F[:, cells.tag == PatchTag.TOP.value], axis=1),
+            "Cowl": np.sum(F[:, cells.tag == PatchTag.COWL.value], axis=1),
+            "Other": np.sum(F[:, cells.tag == PatchTag.FREE_STREAM.value], axis=1),
+        }
+
+        return result, flow_state, Comp_force
 
     @staticmethod
     def pm(M: float, gamma: float = 1.4):
